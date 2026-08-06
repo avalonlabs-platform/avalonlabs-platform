@@ -8,7 +8,6 @@ export type PaddlePrices = Record<string, string>;
 
 function getLineItems(): PricePreviewParams["items"] {
   return pricingTiers
-    .filter((tier) => !tier.contactSalesOnly)
     .flatMap((tier) => [tier.priceId.month, tier.priceId.year])
     .filter(Boolean)
     .map((priceId) => ({ priceId, quantity: 1 }));

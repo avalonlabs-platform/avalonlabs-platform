@@ -1,14 +1,12 @@
 export interface PricingTier {
   name: string;
-  id: "starter" | "professional" | "enterprise";
+  id: "starter" | "pro" | "advanced";
   description: string;
   audience: string;
   features: string[];
   featured: boolean;
-  /** Paddle price IDs. Populate via env vars once the catalog exists in Paddle. */
+  /** Paddle price IDs, populated via env vars once the catalog exists in Paddle. */
   priceId: { month: string; year: string };
-  /** Enterprise has no self-serve checkout — routes to contact instead. */
-  contactSalesOnly?: boolean;
 }
 
 export const pricingTiers: PricingTier[] = [
@@ -25,13 +23,13 @@ export const pricingTiers: PricingTier[] = [
     ],
     featured: false,
     priceId: {
-      month: process.env.NEXT_PUBLIC_PADDLE_PRICE_STARTER_MONTH ?? "pri_placeholder_starter_month",
-      year: process.env.NEXT_PUBLIC_PADDLE_PRICE_STARTER_YEAR ?? "pri_placeholder_starter_year",
+      month: process.env.NEXT_PUBLIC_PADDLE_PRICE_STARTER_MONTH ?? "",
+      year: process.env.NEXT_PUBLIC_PADDLE_PRICE_STARTER_YEAR ?? "",
     },
   },
   {
-    name: "Professional",
-    id: "professional",
+    name: "Pro",
+    id: "pro",
     description: "Multiple Mentor Agents and bundled microservices for small online businesses.",
     audience: "Small businesses",
     features: [
@@ -43,25 +41,26 @@ export const pricingTiers: PricingTier[] = [
     ],
     featured: true,
     priceId: {
-      month: process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTH ?? "pri_placeholder_pro_month",
-      year: process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_YEAR ?? "pri_placeholder_pro_year",
+      month: process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTH ?? "",
+      year: process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_YEAR ?? "",
     },
   },
   {
-    name: "Enterprise",
-    id: "enterprise",
-    description: "Custom Mentor Agent fleets, SLAs, and integrations for growing enterprises.",
+    name: "Advanced",
+    id: "advanced",
+    description: "Unlimited Mentor Agents, custom microservices, and priority SLAs for growing enterprises.",
     audience: "Enterprises",
     features: [
       "Unlimited Mentor Agent seats",
       "Custom microservice development",
       "Dedicated success manager",
-      "Custom contract & invoicing via Paddle",
       "SLA-backed uptime & support",
     ],
     featured: false,
-    priceId: { month: "", year: "" },
-    contactSalesOnly: true,
+    priceId: {
+      month: process.env.NEXT_PUBLIC_PADDLE_PRICE_ADVANCED_MONTH ?? "",
+      year: process.env.NEXT_PUBLIC_PADDLE_PRICE_ADVANCED_YEAR ?? "",
+    },
   },
 ];
 
@@ -76,11 +75,11 @@ export const microserviceProducts: MicroserviceProduct[] = [
   {
     name: "Business Plan Reviewer Agent",
     description: "One-time deep-dive review and action plan from a specialized AI mentor.",
-    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_PLAN_REVIEW ?? "pri_placeholder_ms_plan_review",
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_PLAN_REVIEW ?? "",
   },
   {
     name: "Contract Clause Explainer",
     description: "Upload a contract, get a plain-language walkthrough of key terms and risks.",
-    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_CONTRACT ?? "pri_placeholder_ms_contract",
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_CONTRACT ?? "",
   },
 ];

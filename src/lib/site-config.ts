@@ -10,12 +10,12 @@ export const siteConfig = {
   name: "AvalonLabs Platform",
   shortName: "AvalonLabs",
   tagline: "AI Mentor Agents & SaaS Microservices for people and businesses who need answers now.",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.avalonlabs.com",
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.avalonlabs.ai",
 
   // Support & contact
-  supportEmail: "support@avalonlabs.com",
-  legalEmail: "legal@avalonlabs.com",
-  privacyEmail: "privacy@avalonlabs.com",
+  supportEmail: "support@avalonlabs.ai",
+  legalEmail: "legal@avalonlabs.ai",
+  privacyEmail: "privacy@avalonlabs.ai",
 
   legalEntityName: "AvalonLabs, Inc.",
   legalEntityAddress: "Alekse Šantića 22, 81000 Podgorica, Montenegro",

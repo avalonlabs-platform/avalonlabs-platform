@@ -14,7 +14,7 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
   const { prices, loading } = usePaddlePrices(paddle, country);
 
   function openCheckout(priceId: string) {
-    if (!priceId || priceId.startsWith("pri_placeholder")) {
+    if (!priceId) {
       window.location.assign(`mailto:${siteConfig.supportEmail}?subject=Plan%20inquiry`);
       return;
     }
@@ -50,7 +50,7 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
                   : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
               }`}
             >
-              {f === "month" ? "Monthly" : "Yearly (save ~15%)"}
+              {f === "month" ? "Monthly" : "Yearly"}
             </button>
           ))}
         </div>
@@ -80,16 +80,12 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
               <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">{tier.description}</p>
 
               <div className="mt-6">
-                {tier.contactSalesOnly ? (
-                  <p className="text-3xl font-bold text-zinc-900 dark:text-white">Custom</p>
-                ) : (
-                  <p className="text-3xl font-bold text-zinc-900 dark:text-white">
-                    {loading || !formatted ? "…" : formatted}
-                    <span className="text-base font-normal text-zinc-500 dark:text-zinc-400">
-                      /{frequency}
-                    </span>
-                  </p>
-                )}
+                <p className="text-3xl font-bold text-zinc-900 dark:text-white">
+                  {loading || !formatted ? "…" : formatted}
+                  <span className="text-base font-normal text-zinc-500 dark:text-zinc-400">
+                    /{frequency}
+                  </span>
+                </p>
               </div>
 
               <ul className="mt-6 flex-1 space-y-3 text-sm text-zinc-600 dark:text-zinc-400">
@@ -105,20 +101,14 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
 
               <button
                 type="button"
-                onClick={() =>
-                  tier.contactSalesOnly
-                    ? window.location.assign(
-                        `mailto:${siteConfig.supportEmail}?subject=Enterprise%20plan%20inquiry`
-                      )
-                    : openCheckout(priceId)
-                }
+                onClick={() => openCheckout(priceId)}
                 className={`mt-8 rounded-full px-4 py-2.5 text-center text-sm font-semibold transition-colors ${
                   tier.featured
                     ? "bg-indigo-600 text-white hover:bg-indigo-500"
                     : "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
                 }`}
               >
-                {tier.contactSalesOnly ? "Contact sales" : "Subscribe"}
+                Subscribe
               </button>
             </div>
           );
