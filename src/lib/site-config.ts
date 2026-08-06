@@ -10,12 +10,14 @@ export const siteConfig = {
   name: "AvalonLabs Platform",
   shortName: "AvalonLabs",
   tagline: "AI Mentor Agents & SaaS Microservices for people and businesses who need answers now.",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.avalonlabs.ai",
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://avalonlabs-platform.vercel.app",
 
-  // Support & contact
-  supportEmail: "support@avalonlabs.ai",
-  legalEmail: "legal@avalonlabs.ai",
-  privacyEmail: "privacy@avalonlabs.ai",
+  // Support & contact — TEMPORARY: using a real, controlled inbox since no
+  // domain is owned yet. Replace with support@/legal@/privacy@<real domain>
+  // once a domain is purchased, before Paddle audit submission.
+  supportEmail: "momcilosavic1234567@gmail.com",
+  legalEmail: "momcilosavic1234567@gmail.com",
+  privacyEmail: "momcilosavic1234567@gmail.com",
 
   legalEntityName: "AvalonLabs, Inc.",
   legalEntityAddress: "Alekse Šantića 22, 81000 Podgorica, Montenegro",
