@@ -73,13 +73,13 @@ export interface MicroserviceProduct {
 /** One-time purchase microservices, shown below the subscription tiers. */
 export const microserviceProducts: MicroserviceProduct[] = [
   {
-    name: "Business Plan Analyzer",
-    description: "Upload a business plan document and get automated AI-generated feedback and suggestions.",
+    name: "Code Explainer",
+    description: "Upload a code file or snippet, get an AI-generated plain-language explanation of what it does.",
     priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_PLAN_REVIEW ?? "",
   },
   {
-    name: "Contract Clause Explainer",
-    description: "Upload a contract, get an AI-generated plain-language summary of what each clause means.",
+    name: "API Analyzer",
+    description: "Upload an API spec or endpoint list, get an AI-generated summary of its structure and usage.",
     priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_CONTRACT ?? "",
   },
 ];
