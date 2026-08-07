@@ -12,15 +12,15 @@ export function Hero() {
 
       <div className="mx-auto max-w-6xl px-6 py-28 text-center sm:py-36">
         <p className="mx-auto mb-6 w-fit rounded-full border border-zinc-200 px-4 py-1 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
-          Real-time AI mentorship, on demand
+          AI-powered automation, on demand
         </p>
         <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-6xl">
-          Your AI Mentor Agents for life and business
+          AI Agents & SaaS Microservices for life and business
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-600 dark:text-zinc-400">
-          AvalonLabs pairs you with specialized AI Agents and SaaS Microservices that act as
-          real-time instructors — helping individuals, small businesses, and enterprises solve
-          complex problems the moment they come up.
+          AvalonLabs gives you specialized AI Agents and SaaS Microservices — automated software
+          tools that help individuals, small businesses, and enterprises get instant answers to
+          everyday problems.
         </p>
         <div className="mt-10 flex items-center justify-center gap-4">
           <Link

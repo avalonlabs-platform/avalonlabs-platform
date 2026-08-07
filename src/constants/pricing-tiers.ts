@@ -13,10 +13,10 @@ export const pricingTiers: PricingTier[] = [
   {
     name: "Starter",
     id: "starter",
-    description: "One AI Mentor Agent, for individuals solving day-to-day problems.",
+    description: "One AI Agent, for individuals solving day-to-day problems.",
     audience: "Individuals",
     features: [
-      "1 AI Mentor Agent seat",
+      "1 AI Agent seat",
       "Unlimited chat sessions",
       "Access to core SaaS Microservices (pay-per-use)",
       "Email support",
@@ -30,10 +30,10 @@ export const pricingTiers: PricingTier[] = [
   {
     name: "Pro",
     id: "pro",
-    description: "Multiple Mentor Agents and bundled microservices for small online businesses.",
+    description: "Multiple AI Agents and bundled microservices for small online businesses.",
     audience: "Small businesses",
     features: [
-      "5 AI Mentor Agent seats",
+      "5 AI Agent seats",
       "All SaaS Microservices included",
       "Priority response times",
       "Team workspace & shared history",
@@ -48,10 +48,10 @@ export const pricingTiers: PricingTier[] = [
   {
     name: "Advanced",
     id: "advanced",
-    description: "Unlimited Mentor Agents, custom microservices, and priority SLAs for growing enterprises.",
+    description: "Unlimited AI Agents, custom microservices, and priority SLAs for growing enterprises.",
     audience: "Enterprises",
     features: [
-      "Unlimited Mentor Agent seats",
+      "Unlimited AI Agent seats",
       "Custom microservice development",
       "Dedicated success manager",
       "SLA-backed uptime & support",
@@ -73,13 +73,13 @@ export interface MicroserviceProduct {
 /** One-time purchase microservices, shown below the subscription tiers. */
 export const microserviceProducts: MicroserviceProduct[] = [
   {
-    name: "Business Plan Reviewer Agent",
-    description: "One-time deep-dive review and action plan from a specialized AI mentor.",
+    name: "Business Plan Analyzer",
+    description: "Upload a business plan document and get automated AI-generated feedback and suggestions.",
     priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_PLAN_REVIEW ?? "",
   },
   {
     name: "Contract Clause Explainer",
-    description: "Upload a contract, get a plain-language walkthrough of key terms and risks.",
+    description: "Upload a contract, get an AI-generated plain-language summary of what each clause means.",
     priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_CONTRACT ?? "",
   },
 ];

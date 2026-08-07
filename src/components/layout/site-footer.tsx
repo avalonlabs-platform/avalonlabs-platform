@@ -8,7 +8,7 @@ const legalLinks = [
 ];
 
 const productLinks = [
-  { href: "/#agents", label: "AI Mentor Agents" },
+  { href: "/#agents", label: "AI Agents" },
   { href: "/#pricing", label: "Pricing" },
   { href: "/#contact", label: "Contact" },
 ];

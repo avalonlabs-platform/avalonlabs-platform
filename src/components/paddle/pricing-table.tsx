@@ -32,7 +32,7 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
           Plans for individuals, businesses, and enterprises
         </p>
         <p className="mt-4 text-lg text-zinc-600 dark:text-zinc-400">
-          Subscribe for ongoing access to AI Mentor Agents, or buy a SaaS Microservice once. Card,
+          Subscribe for ongoing access to AI Agents, or buy a SaaS Microservice once. Card,
           PayPal, Apple Pay, Google Pay, and IBAN/wire — all handled securely through Paddle.
         </p>
       </div>
@@ -120,7 +120,7 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
           One-time SaaS Microservices
         </h3>
         <p className="mx-auto mt-2 max-w-xl text-center text-sm text-zinc-600 dark:text-zinc-400">
-          No subscription needed — pay once for a focused AI mentor task.
+          No subscription needed — pay once for a focused automated AI task.
         </p>
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
           {microserviceProducts.map((product) => (

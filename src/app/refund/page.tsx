@@ -39,7 +39,7 @@ export default function RefundPolicyPage() {
         <LegalList
           items={[
             "If a one-time microservice has not yet been delivered or the AI Agent has not yet generated the requested output, you may request a full refund at any time before delivery.",
-            "Once the AI Mentor Agent has delivered the requested output (e.g., a completed review, report, or generated deliverable), the purchase is non-refundable, except where the deliverable was materially defective, was not delivered due to a technical failure on our side, or where required by applicable consumer law.",
+            "Once the AI Agent has generated the requested output (e.g., a completed document, report, or file), the purchase is non-refundable, except where the deliverable was materially defective, was not delivered due to a technical failure on our side, or where required by applicable consumer law.",
             "Duplicate charges or verified billing errors are always eligible for a full refund.",
           ]}
         />
@@ -49,7 +49,7 @@ export default function RefundPolicyPage() {
         <p>
           If you are a consumer in the EU, UK, or another jurisdiction granting a statutory right
           of withdrawal for digital purchases, you may have a right to withdraw within 14 days of
-          purchase. Because AI Mentor Agent responses and Microservice deliverables are digital
+          purchase. Because AI Agent outputs and Microservice deliverables are digital
           content delivered immediately upon your request, you acknowledge and consent that
           immediate access/delivery may cause you to lose this withdrawal right once performance
           has begun, to the extent permitted by local law. Nothing in this section limits

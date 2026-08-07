@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: `${siteConfig.name} — AI Mentor Agents & SaaS Microservices`,
+  title: `${siteConfig.name} — AI Agents & SaaS Microservices`,
   description: siteConfig.tagline,
 };
 

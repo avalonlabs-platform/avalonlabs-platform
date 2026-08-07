@@ -31,7 +31,7 @@ export default function PrivacyPage() {
             </>,
             <>
               <strong>Conversation and usage data:</strong> prompts, messages, and content you
-              submit to AI Mentor Agents and Microservices, along with resulting outputs and
+              submit to AI Agents and Microservices, along with resulting outputs and
               interaction logs, to operate and improve the Service.
             </>,
             <>
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
       <LegalSection heading="3. How we use personal data">
         <LegalList
           items={[
-            "To provide, operate, and secure the AI Mentor Agents and SaaS Microservices you request.",
+            "To provide, operate, and secure the AI Agents and SaaS Microservices you request.",
             "To process subscriptions and one-time purchases via Paddle and manage your account.",
             "To respond to support and contact form requests.",
             "To monitor, debug, and improve model outputs, reliability, and safety of the Service.",
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
 
       <LegalSection heading="4. AI-specific data handling">
         <p>
-          Content you submit to an AI Mentor Agent (prompts, uploaded files, conversation history)
+          Content you submit to an AI Agent (prompts, uploaded files, conversation history)
           is processed by our AI infrastructure — which may include third-party model providers
           acting as our processors under data processing agreements — solely to generate responses
           and operate the Service.

@@ -9,7 +9,7 @@
 export const siteConfig = {
   name: "AvalonLabs Platform",
   shortName: "AvalonLabs",
-  tagline: "AI Mentor Agents & SaaS Microservices for people and businesses who need answers now.",
+  tagline: "AI Agents & SaaS Microservices for people and businesses who need answers now.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://avalonlabs-platform.vercel.app",
 
   // Support & contact — TEMPORARY: using a real, controlled inbox since no
