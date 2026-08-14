@@ -1,14 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState, type FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 
-function LoginForm() {
+/** Reads ?next= without next/navigation's useSearchParams, which requires a
+ * Suspense boundary for static generation — avoided here after that pattern
+ * produced a route-specific 404 on Vercel's build (isolated to this page). */
+function getNextParam(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return new URLSearchParams(window.location.search).get("next") ?? undefined;
+}
+
+export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +35,7 @@ function LoginForm() {
       return;
     }
 
-    router.push(searchParams.get("next") ?? "/dashboard");
+    router.push(getNextParam() ?? "/dashboard");
     router.refresh();
   }
 
@@ -38,7 +45,7 @@ function LoginForm() {
       <p className="mt-2 text-sm text-white/50">Access your AI Agents and account.</p>
 
       <div className="mt-8">
-        <OAuthButtons redirectTo={searchParams.get("next") ?? undefined} />
+        <OAuthButtons redirectTo={getNextParam()} />
       </div>
 
       <div className="my-6 flex items-center gap-3">
@@ -93,13 +100,5 @@ function LoginForm() {
         </Link>
       </p>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
   );
 }
