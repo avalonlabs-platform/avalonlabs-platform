@@ -11,7 +11,7 @@ cp .env.example .env.local   # fill in real Supabase/Paddle values
 npm run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001). If that port is already in use, Next.js will
+Open [http://localhost:3001](http://localhost:3000). If that port is already in use, Next.js will
 pick the next free one (check the terminal output).
 
 ## What's here
