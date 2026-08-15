@@ -2,7 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { agents } from "@/constants/agents";
-import { pricingTiers, type PricingTier } from "@/constants/pricing-tiers";
+import { pricingTiers, microserviceProducts, type PricingTier } from "@/constants/pricing-tiers";
+
+const COMPLETED_TRANSACTION_STATUS = "completed";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_TURNS = 20;
@@ -61,9 +63,20 @@ export async function POST(request: Request) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
 
+  const body: ChatRequestBody = await request.json();
+  const { agentId, message, history } = body;
+
+  // The system prompt is resolved server-side from a trusted lookup — the
+  // client only ever supplies an agent id, never prompt text.
+  const agent = agents.find((a) => a.id === agentId);
+  if (!agent) {
+    return Response.json({ error: "Unknown agent" }, { status: 400 });
+  }
+
   // Fail closed: if we can't verify billing status, don't grant access.
   let hasActiveSubscription = false;
-  let priceId = "";
+  let subscriptionPriceId = "";
+  let hasStandalonePurchase = false;
   try {
     const internal = createInternalClient();
     const { data: customer } = await internal
@@ -83,21 +96,44 @@ export async function POST(request: Request) {
 
       hasActiveSubscription =
         !!subscription && ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.subscription_status);
-      priceId = subscription?.price_id ?? "";
+      subscriptionPriceId = subscription?.price_id ?? "";
+
+      // No subscription? Fall back to checking whether this specific agent
+      // was unlocked by a completed one-time SaaS Microservice purchase.
+      if (!hasActiveSubscription) {
+        const microservice = microserviceProducts.find((m) => m.agentId === agent.id);
+        if (microservice?.priceId) {
+          const { data: purchase } = await internal
+            .from("transactions")
+            .select("transaction_id")
+            .eq("customer_id", customer.customer_id)
+            .eq("price_id", microservice.priceId)
+            .eq("status", COMPLETED_TRANSACTION_STATUS)
+            .limit(1)
+            .maybeSingle();
+          hasStandalonePurchase = !!purchase;
+        }
+      }
     }
   } catch (error) {
-    console.error("Chat: subscription lookup failed —", error);
+    console.error("Chat: subscription/purchase lookup failed —", error);
     return Response.json({ error: "Unable to verify subscription status" }, { status: 500 });
   }
 
-  if (!hasActiveSubscription) {
+  if (!hasActiveSubscription && !hasStandalonePurchase) {
     return Response.json(
-      { error: "An active subscription is required to chat with AI Agents." },
+      {
+        error:
+          "An active subscription or a one-time purchase of this AI Agent is required to chat with it.",
+      },
       { status: 402 }
     );
   }
 
-  if (!checkRateLimit(user.id, tierRateLimit(priceId))) {
+  // Standalone (no-subscription) purchasers get the safe default rate limit —
+  // there's no plan tier to scale it from.
+  const rateLimit = hasActiveSubscription ? tierRateLimit(subscriptionPriceId) : DEFAULT_RATE_LIMIT;
+  if (!checkRateLimit(user.id, rateLimit)) {
     return Response.json(
       {
         error:
@@ -110,16 +146,6 @@ export async function POST(request: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error("Chat: ANTHROPIC_API_KEY is not set.");
     return Response.json({ error: "Chat is not configured" }, { status: 500 });
-  }
-
-  const body: ChatRequestBody = await request.json();
-  const { agentId, message, history } = body;
-
-  // The system prompt is resolved server-side from a trusted lookup — the
-  // client only ever supplies an agent id, never prompt text.
-  const agent = agents.find((a) => a.id === agentId);
-  if (!agent) {
-    return Response.json({ error: "Unknown agent" }, { status: 400 });
   }
 
   if (!message || typeof message !== "string" || !message.trim()) {

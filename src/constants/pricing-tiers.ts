@@ -68,6 +68,8 @@ export interface MicroserviceProduct {
   name: string;
   description: string;
   priceId: string;
+  /** Dashboard agent this one-time purchase unlocks (see src/constants/agents.ts). */
+  agentId: string;
 }
 
 /** One-time purchase microservices, shown below the subscription tiers. */
@@ -76,10 +78,12 @@ export const microserviceProducts: MicroserviceProduct[] = [
     name: "Code Explainer",
     description: "Upload a code file or snippet, get an AI-generated plain-language explanation of what it does.",
     priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_PLAN_REVIEW ?? "",
+    agentId: "code-explainer",
   },
   {
     name: "API Analyzer",
     description: "Upload an API spec or endpoint list, get an AI-generated summary of its structure and usage.",
     priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_CONTRACT ?? "",
+    agentId: "api-analyzer",
   },
 ];
