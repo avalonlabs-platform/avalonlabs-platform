@@ -1,9 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { createInternalClient } from "@/lib/supabase/server-internal";
 import { agents } from "@/constants/agents";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_TURNS = 20;
+const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
 interface ChatTurn {
   role: "user" | "assistant";
@@ -25,6 +27,40 @@ export async function POST(request: Request) {
 
   if (!user) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  // Fail closed: if we can't verify billing status, don't grant access.
+  let hasActiveSubscription = false;
+  try {
+    const internal = createInternalClient();
+    const { data: customer } = await internal
+      .from("customers")
+      .select("customer_id")
+      .eq("email", user.email ?? "")
+      .single();
+
+    if (customer) {
+      const { data: subscription } = await internal
+        .from("subscriptions")
+        .select("subscription_status")
+        .eq("customer_id", customer.customer_id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      hasActiveSubscription =
+        !!subscription && ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.subscription_status);
+    }
+  } catch (error) {
+    console.error("Chat: subscription lookup failed —", error);
+    return Response.json({ error: "Unable to verify subscription status" }, { status: 500 });
+  }
+
+  if (!hasActiveSubscription) {
+    return Response.json(
+      { error: "An active subscription is required to chat with AI Agents." },
+      { status: 402 }
+    );
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
