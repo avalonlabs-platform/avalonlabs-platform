@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       try {
         const claudeStream = anthropic.messages.stream({
           model: "claude-sonnet-5",
-          max_tokens: 2048,
+          max_tokens: 4096,
           system: agent.systemPrompt,
           messages,
         });
