@@ -7,6 +7,25 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_TURNS = 20;
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
+// Best-effort per-user rate limit. In-memory, so it only holds within a warm
+// serverless instance — same caveat as the public demo's per-IP limit, just
+// keyed by user id since every request here is already authenticated.
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 30;
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(userId);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX_REQUESTS) return false;
+  entry.count += 1;
+  return true;
+}
+
 interface ChatTurn {
   role: "user" | "assistant";
   content: string;
@@ -27,6 +46,13 @@ export async function POST(request: Request) {
 
   if (!user) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  if (!checkRateLimit(user.id)) {
+    return Response.json(
+      { error: "You're sending messages too quickly — please wait a bit and try again." },
+      { status: 429 }
+    );
   }
 
   // Fail closed: if we can't verify billing status, don't grant access.
