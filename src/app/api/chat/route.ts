@@ -2,26 +2,39 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { agents } from "@/constants/agents";
+import { pricingTiers, type PricingTier } from "@/constants/pricing-tiers";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_TURNS = 20;
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
-// Best-effort per-user rate limit. In-memory, so it only holds within a warm
-// serverless instance — same caveat as the public demo's per-IP limit, just
-// keyed by user id since every request here is already authenticated.
+// Best-effort per-user rate limit, scaled by plan tier. In-memory, so it only
+// holds within a warm serverless instance — same caveat as the public demo's
+// per-IP limit, just keyed by user id since every request here is authenticated.
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 30;
+const TIER_RATE_LIMITS: Record<PricingTier["id"], number> = {
+  starter: 30,
+  pro: 100,
+  advanced: 300,
+};
+// Unrecognized price id (e.g. a legacy or manually-created price) gets the
+// safest, lowest-tier limit rather than being trusted with the highest one.
+const DEFAULT_RATE_LIMIT = TIER_RATE_LIMITS.starter;
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-function checkRateLimit(userId: string): boolean {
+function tierRateLimit(priceId: string): number {
+  const tier = pricingTiers.find((t) => t.priceId.month === priceId || t.priceId.year === priceId);
+  return tier ? TIER_RATE_LIMITS[tier.id] : DEFAULT_RATE_LIMIT;
+}
+
+function checkRateLimit(userId: string, maxRequests: number): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(userId);
   if (!entry || now > entry.resetAt) {
     rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
-  if (entry.count >= RATE_LIMIT_MAX_REQUESTS) return false;
+  if (entry.count >= maxRequests) return false;
   entry.count += 1;
   return true;
 }
@@ -48,15 +61,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  if (!checkRateLimit(user.id)) {
-    return Response.json(
-      { error: "You're sending messages too quickly — please wait a bit and try again." },
-      { status: 429 }
-    );
-  }
-
   // Fail closed: if we can't verify billing status, don't grant access.
   let hasActiveSubscription = false;
+  let priceId = "";
   try {
     const internal = createInternalClient();
     const { data: customer } = await internal
@@ -68,7 +75,7 @@ export async function POST(request: Request) {
     if (customer) {
       const { data: subscription } = await internal
         .from("subscriptions")
-        .select("subscription_status")
+        .select("subscription_status, price_id")
         .eq("customer_id", customer.customer_id)
         .order("updated_at", { ascending: false })
         .limit(1)
@@ -76,6 +83,7 @@ export async function POST(request: Request) {
 
       hasActiveSubscription =
         !!subscription && ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.subscription_status);
+      priceId = subscription?.price_id ?? "";
     }
   } catch (error) {
     console.error("Chat: subscription lookup failed —", error);
@@ -86,6 +94,16 @@ export async function POST(request: Request) {
     return Response.json(
       { error: "An active subscription is required to chat with AI Agents." },
       { status: 402 }
+    );
+  }
+
+  if (!checkRateLimit(user.id, tierRateLimit(priceId))) {
+    return Response.json(
+      {
+        error:
+          "You've hit your plan's message limit for now — please wait a bit and try again, or upgrade for a higher limit.",
+      },
+      { status: 429 }
     );
   }
 
