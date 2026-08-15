@@ -6,19 +6,24 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 
-/** Reads ?next= without next/navigation's useSearchParams, which requires a
+/** Reads a query param without next/navigation's useSearchParams, which requires a
  * Suspense boundary for static generation — avoided here after that pattern
  * produced a route-specific 404 on Vercel's build (isolated to this page). */
-function getNextParam(): string | undefined {
+function getQueryParam(name: string): string | undefined {
   if (typeof window === "undefined") return undefined;
-  return new URLSearchParams(window.location.search).get("next") ?? undefined;
+  return new URLSearchParams(window.location.search).get(name) ?? undefined;
 }
+
+const OAUTH_ERROR_MESSAGE =
+  "Sign-in with that provider didn't complete — please try again. If it keeps happening, use email/password instead.";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    getQueryParam("error") === "oauth" ? OAUTH_ERROR_MESSAGE : null
+  );
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
@@ -35,7 +40,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push(getNextParam() ?? "/dashboard");
+    router.push(getQueryParam("next") ?? "/dashboard");
     router.refresh();
   }
 
@@ -45,7 +50,7 @@ export default function LoginPage() {
       <p className="mt-2 text-sm text-white/50">Access your AI Agents and account.</p>
 
       <div className="mt-8">
-        <OAuthButtons redirectTo={getNextParam()} />
+        <OAuthButtons redirectTo={getQueryParam("next")} />
       </div>
 
       <div className="my-6 flex items-center gap-3">
