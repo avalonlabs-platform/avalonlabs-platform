@@ -34,22 +34,28 @@ export function OAuthButtons({ redirectTo }: { redirectTo?: string }) {
     setError(null);
     setLoadingProvider(provider);
 
-    const supabase = createClient();
-    const params = new URLSearchParams();
-    if (redirectTo) params.set("next", redirectTo);
+    try {
+      const supabase = createClient();
+      const params = new URLSearchParams();
+      if (redirectTo) params.set("next", redirectTo);
 
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?${params.toString()}`,
-      },
-    });
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?${params.toString()}`,
+        },
+      });
 
-    if (oauthError) {
-      setError(oauthError.message);
+      if (oauthError) {
+        setError(oauthError.message);
+        setLoadingProvider(null);
+      }
+      // On success the browser navigates away to the provider — nothing else to do here.
+    } catch (err) {
+      console.error("OAuth sign-in threw —", err);
+      setError(err instanceof Error ? err.message : "Something went wrong starting sign-in.");
       setLoadingProvider(null);
     }
-    // On success the browser navigates away to the provider — nothing else to do here.
   }
 
   return (
