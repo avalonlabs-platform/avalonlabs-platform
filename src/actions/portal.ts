@@ -35,9 +35,16 @@ export async function createPortalSession() {
 
   const subscriptionIds = (subRows ?? []).map((r) => r.subscription_id);
 
-  const paddle = getPaddleInstance();
-  const session = await paddle.customerPortalSessions.create(customerRow.customer_id, subscriptionIds);
-
-  // 4. Return only the redirect URL — never the raw session object.
-  return { url: session.urls.general.overview };
+  // 4. Never let a Paddle API failure (network issue, outage, stale customer
+  //    record) throw uncaught out of a Server Action — that crashes the
+  //    whole dashboard instead of showing an inline error.
+  try {
+    const paddle = getPaddleInstance();
+    const session = await paddle.customerPortalSessions.create(customerRow.customer_id, subscriptionIds);
+    // Return only the redirect URL — never the raw session object.
+    return { url: session.urls.general.overview };
+  } catch (error) {
+    console.error("Portal: failed to create session —", error);
+    return { error: "Portal unavailable" as const };
+  }
 }
