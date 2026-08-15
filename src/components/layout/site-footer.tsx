@@ -17,23 +17,24 @@ export function SiteFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+    <footer className="relative border-t border-white/10 bg-black">
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent"
+      />
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
           <div>
-            <p className="text-lg font-bold text-zinc-900 dark:text-white">{siteConfig.shortName}</p>
-            <p className="mt-2 max-w-xs text-sm text-zinc-600 dark:text-zinc-400">{siteConfig.tagline}</p>
+            <p className="text-lg font-bold text-white">{siteConfig.shortName}</p>
+            <p className="mt-2 max-w-xs text-sm text-white/50">{siteConfig.tagline}</p>
           </div>
 
           <div>
-            <p className="text-sm font-semibold text-zinc-900 dark:text-white">Product</p>
+            <p className="text-sm font-semibold text-white">Product</p>
             <ul className="mt-3 space-y-2">
               {productLinks.map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-                  >
+                  <Link href={link.href} className="text-sm text-white/50 hover:text-white">
                     {link.label}
                   </Link>
                 </li>
@@ -42,31 +43,25 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <p className="text-sm font-semibold text-zinc-900 dark:text-white">Legal</p>
+            <p className="text-sm font-semibold text-white">Legal</p>
             <ul className="mt-3 space-y-2">
               {legalLinks.map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-                  >
+                  <Link href={link.href} className="text-sm text-white/50 hover:text-white">
                     {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
             <p className="mt-4 text-sm">
-              <a
-                href={`mailto:${siteConfig.supportEmail}`}
-                className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-              >
+              <a href={`mailto:${siteConfig.supportEmail}`} className="text-white/50 hover:text-white">
                 {siteConfig.supportEmail}
               </a>
             </p>
           </div>
         </div>
 
-        <div className="mt-10 border-t border-zinc-200 pt-6 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-500">
+        <div className="mt-10 border-t border-white/10 pt-6 text-xs text-white/40">
           <p>
             &copy; {year} {siteConfig.legalEntityName}. All rights reserved.
           </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { usePaddle } from "@/hooks/use-paddle";
 import { usePaddlePrices } from "@/hooks/use-paddle-prices";
 import { pricingTiers, microserviceProducts } from "@/constants/pricing-tiers";
@@ -25,122 +26,136 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
   }
 
   return (
-    <section id="pricing" className="mx-auto max-w-6xl px-6 py-24">
-      <div className="mx-auto max-w-2xl text-center">
-        <h2 className="text-base font-semibold text-indigo-600 dark:text-indigo-400">Pricing</h2>
-        <p className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-4xl">
-          Plans for individuals, businesses, and enterprises
-        </p>
-        <p className="mt-4 text-lg text-zinc-600 dark:text-zinc-400">
-          Subscribe for ongoing access to AI Agents, or buy a SaaS Microservice once. Card,
-          PayPal, Apple Pay, Google Pay, and IBAN/wire — all handled securely through Paddle.
-        </p>
-      </div>
+    <section id="pricing" className="relative overflow-hidden py-24">
+      <div aria-hidden className="absolute inset-0 -z-10 bg-grid" />
 
-      <div className="mt-10 flex justify-center">
-        <div className="inline-flex rounded-full border border-zinc-200 p-1 dark:border-zinc-800">
-          {(["month", "year"] as Frequency[]).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFrequency(f)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                frequency === f
-                  ? "bg-indigo-600 text-white"
-                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-              }`}
-            >
-              {f === "month" ? "Monthly" : "Yearly"}
-            </button>
-          ))}
-        </div>
-      </div>
+      <div className="mx-auto max-w-6xl px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.6 }}
+          className="mx-auto max-w-2xl text-center"
+        >
+          <h2 className="text-sm font-semibold tracking-wide text-indigo-400 uppercase">Pricing</h2>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Plans for individuals, businesses, and enterprises
+          </p>
+          <p className="mt-4 text-lg text-white/60">
+            Subscribe for ongoing access to AI Agents, or buy a SaaS Microservice once. Card,
+            PayPal, Apple Pay, Google Pay, and IBAN/wire — all handled securely through Paddle.
+          </p>
+        </motion.div>
 
-      <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {pricingTiers.map((tier) => {
-          const priceId = tier.priceId[frequency];
-          const formatted = prices[priceId];
-
-          return (
-            <div
-              key={tier.id}
-              className={`flex flex-col rounded-2xl border p-8 ${
-                tier.featured
-                  ? "border-indigo-600 ring-1 ring-indigo-600 dark:border-indigo-400 dark:ring-indigo-400"
-                  : "border-zinc-200 dark:border-zinc-800"
-              }`}
-            >
-              {tier.featured && (
-                <span className="mb-4 inline-block w-fit rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white">
-                  Most popular
-                </span>
-              )}
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">{tier.name}</h3>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{tier.audience}</p>
-              <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">{tier.description}</p>
-
-              <div className="mt-6">
-                <p className="text-3xl font-bold text-zinc-900 dark:text-white">
-                  {loading || !formatted ? "…" : formatted}
-                  <span className="text-base font-normal text-zinc-500 dark:text-zinc-400">
-                    /{frequency}
-                  </span>
-                </p>
-              </div>
-
-              <ul className="mt-6 flex-1 space-y-3 text-sm text-zinc-600 dark:text-zinc-400">
-                {tier.features.map((feature) => (
-                  <li key={feature} className="flex gap-2">
-                    <span aria-hidden className="text-indigo-600 dark:text-indigo-400">
-                      ✓
-                    </span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-
+        <div className="mt-10 flex justify-center">
+          <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
+            {(["month", "year"] as Frequency[]).map((f) => (
               <button
+                key={f}
                 type="button"
-                onClick={() => openCheckout(priceId)}
-                className={`mt-8 rounded-full px-4 py-2.5 text-center text-sm font-semibold transition-colors ${
-                  tier.featured
-                    ? "bg-indigo-600 text-white hover:bg-indigo-500"
-                    : "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+                onClick={() => setFrequency(f)}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  frequency === f
+                    ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white"
+                    : "text-white/60 hover:text-white"
                 }`}
               >
-                Subscribe
+                {f === "month" ? "Monthly" : "Yearly"}
               </button>
-            </div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </div>
 
-      <div className="mt-20">
-        <h3 className="text-center text-xl font-semibold text-zinc-900 dark:text-white">
-          One-time SaaS Microservices
-        </h3>
-        <p className="mx-auto mt-2 max-w-xl text-center text-sm text-zinc-600 dark:text-zinc-400">
-          No subscription needed — pay once for a focused automated AI task.
-        </p>
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
-          {microserviceProducts.map((product) => (
-            <div
-              key={product.name}
-              className="flex items-center justify-between rounded-xl border border-zinc-200 p-6 dark:border-zinc-800"
-            >
-              <div>
-                <p className="font-medium text-zinc-900 dark:text-white">{product.name}</p>
-                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{product.description}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => openCheckout(product.priceId)}
-                className="ml-4 shrink-0 rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 dark:border-zinc-700 dark:text-white dark:hover:bg-zinc-900"
+        <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-3">
+          {pricingTiers.map((tier, i) => {
+            const priceId = tier.priceId[frequency];
+            const formatted = prices[priceId];
+
+            return (
+              <motion.div
+                key={tier.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                className={`relative flex flex-col rounded-2xl border p-8 backdrop-blur-xl transition-colors ${
+                  tier.featured
+                    ? "border-indigo-400/40 bg-white/[0.05] shadow-xl shadow-indigo-500/10"
+                    : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                }`}
               >
-                Buy once
-              </button>
-            </div>
-          ))}
+                {tier.featured && (
+                  <span className="mb-4 inline-block w-fit rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-3 py-1 text-xs font-semibold text-white">
+                    Most popular
+                  </span>
+                )}
+                <h3 className="text-lg font-semibold text-white">{tier.name}</h3>
+                <p className="mt-1 text-sm text-white/40">{tier.audience}</p>
+                <p className="mt-4 text-sm text-white/60">{tier.description}</p>
+
+                <div className="mt-6">
+                  <p className="text-3xl font-bold text-white">
+                    {loading || !formatted ? "…" : formatted}
+                    <span className="text-base font-normal text-white/40">/{frequency}</span>
+                  </p>
+                </div>
+
+                <ul className="mt-6 flex-1 space-y-3 text-sm text-white/60">
+                  {tier.features.map((feature) => (
+                    <li key={feature} className="flex gap-2">
+                      <span aria-hidden className="text-glow-cyan">
+                        ✓
+                      </span>
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  type="button"
+                  onClick={() => openCheckout(priceId)}
+                  className={`mt-8 rounded-full px-4 py-2.5 text-center text-sm font-semibold transition-opacity hover:opacity-90 ${
+                    tier.featured
+                      ? "bg-gradient-to-r from-indigo-500 to-violet-500 text-white"
+                      : "border border-white/15 text-white/90 hover:bg-white/5"
+                  }`}
+                >
+                  Subscribe
+                </button>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <div className="mt-20">
+          <h3 className="text-center text-xl font-semibold text-white">One-time SaaS Microservices</h3>
+          <p className="mx-auto mt-2 max-w-xl text-center text-sm text-white/60">
+            No subscription needed — pay once for a focused automated AI task.
+          </p>
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {microserviceProducts.map((product, i) => (
+              <motion.div
+                key={product.name}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] p-6 backdrop-blur-xl transition-colors hover:border-white/20"
+              >
+                <div>
+                  <p className="font-medium text-white">{product.name}</p>
+                  <p className="mt-1 text-sm text-white/60">{product.description}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openCheckout(product.priceId)}
+                  className="ml-4 shrink-0 rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white/90 transition-colors hover:bg-white/5"
+                >
+                  Buy once
+                </button>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
