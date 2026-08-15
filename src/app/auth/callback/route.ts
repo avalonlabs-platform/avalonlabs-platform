@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-/** Exchanges the OAuth `code` param for a session after Google/Apple redirect back here. */
+/** Exchanges the `code` param for a session — used by Google/X OAuth redirects and by
+ *  password-recovery email links (both land here before continuing to `next`). */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
