@@ -42,8 +42,8 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
             Plans for individuals, businesses, and enterprises
           </p>
           <p className="mt-4 text-lg text-white/60">
-            Subscribe for ongoing access to AI Agents, or buy a SaaS Microservice once. Card,
-            PayPal, Apple Pay, Google Pay, and IBAN/wire — all handled securely through Paddle.
+            Subscribe for ongoing access to AI Agents, or buy a SaaS Microservice once.
+            Debit/Credit Card, PayPal, Google Pay — all handled securely through Paddle.
           </p>
         </motion.div>
 
