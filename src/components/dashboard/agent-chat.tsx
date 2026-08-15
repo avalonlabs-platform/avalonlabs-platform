@@ -56,15 +56,17 @@ export function AgentChat({ agent }: { agent: Agent }) {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let full = "";
+      const chunks: string[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        full += decoder.decode(value, { stream: true });
+        chunks.push(decoder.decode(value, { stream: true }));
+        const full = chunks.join("");
         setMessages((prev) => prev.map((m) => (m.id === agentMsgId ? { ...m, content: full } : m)));
       }
 
+      const full = chunks.join("");
       setMessages((prev) => prev.map((m) => (m.id === agentMsgId ? { ...m, typing: false } : m)));
       historyRef.current = [...history, { role: "user", content: text }, { role: "assistant", content: full }];
     } catch (error) {
