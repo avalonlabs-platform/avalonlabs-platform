@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Agent } from "@/constants/agents";
 
 type ChatMessage = { id: number; role: "user" | "agent"; content: string; typing?: boolean };
+type ApiTurn = { role: "user" | "assistant"; content: string };
 
 let idCounter = 0;
 function nextId() {
@@ -20,12 +21,14 @@ export function AgentChat({ agent }: { agent: Agent }) {
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Real conversation sent to the model — excludes the client-only greeting.
+  const historyRef = useRef<ApiTurn[]>([]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  function send(prompt: string) {
+  async function send(prompt: string) {
     const text = prompt.trim();
     if (!text || isThinking) return;
 
@@ -33,25 +36,48 @@ export function AgentChat({ agent }: { agent: Agent }) {
     setMessages((prev) => [...prev, { id: nextId(), role: "user", content: text }]);
     setIsThinking(true);
 
-    const full = agent.respond(text);
-    window.setTimeout(() => {
-      const agentId = nextId();
-      setIsThinking(false);
-      setMessages((prev) => [...prev, { id: agentId, role: "agent", content: "", typing: true }]);
-      typeOut(agentId, full);
-    }, 550);
-  }
+    const history = historyRef.current;
+    const agentMsgId = nextId();
 
-  function typeOut(id: number, full: string) {
-    let i = 0;
-    const step = () => {
-      i += Math.max(1, Math.round(full.length / 140));
-      setMessages((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, content: full.slice(0, i), typing: i < full.length } : m))
-      );
-      if (i < full.length) window.setTimeout(step, 12);
-    };
-    step();
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId: agent.id, message: text, history }),
+      });
+
+      if (!res.ok || !res.body) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `Request failed (${res.status})`);
+      }
+
+      setIsThinking(false);
+      setMessages((prev) => [...prev, { id: agentMsgId, role: "agent", content: "", typing: true }]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        setMessages((prev) => prev.map((m) => (m.id === agentMsgId ? { ...m, content: full } : m)));
+      }
+
+      setMessages((prev) => prev.map((m) => (m.id === agentMsgId ? { ...m, typing: false } : m)));
+      historyRef.current = [...history, { role: "user", content: text }, { role: "assistant", content: full }];
+    } catch (error) {
+      setIsThinking(false);
+      const errorText = error instanceof Error ? error.message : "Something went wrong.";
+      setMessages((prev) => {
+        const withoutPending = prev.filter((m) => m.id !== agentMsgId);
+        return [
+          ...withoutPending,
+          { id: agentMsgId, role: "agent", content: `⚠️ ${errorText}` },
+        ];
+      });
+    }
   }
 
   function handleSubmit(event: FormEvent) {
@@ -65,7 +91,7 @@ export function AgentChat({ agent }: { agent: Agent }) {
         <span className="text-xl leading-none">{agent.emoji}</span>
         <div>
           <p className="text-sm font-semibold text-white">{agent.name}</p>
-          <p className="text-xs text-white/40">Mocked responses — live model coming soon</p>
+          <p className="text-xs text-white/40">Powered by Claude</p>
         </div>
       </div>
 
@@ -80,7 +106,7 @@ export function AgentChat({ agent }: { agent: Agent }) {
               className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
                   m.role === "user"
                     ? "bg-indigo-500/90 text-white"
                     : "border border-white/10 bg-white/5 text-white/90"
