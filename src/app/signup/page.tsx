@@ -6,6 +6,14 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 
+/** Reads a query param without next/navigation's useSearchParams, which requires a
+ * Suspense boundary for static generation — avoided here after that pattern
+ * produced a route-specific 404 on Vercel's build (isolated to the login page). */
+function getQueryParam(name: string): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return new URLSearchParams(window.location.search).get(name) ?? undefined;
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -29,7 +37,7 @@ export default function SignupPage() {
     }
 
     if (data.session) {
-      router.push("/dashboard");
+      router.push(getQueryParam("next") ?? "/dashboard");
       router.refresh();
       return;
     }
@@ -63,7 +71,7 @@ export default function SignupPage() {
       <p className="mt-2 text-sm text-white/50">Get access to your AI Agents dashboard.</p>
 
       <div className="mt-8">
-        <OAuthButtons />
+        <OAuthButtons redirectTo={getQueryParam("next")} />
       </div>
 
       <div className="my-6 flex items-center gap-3">

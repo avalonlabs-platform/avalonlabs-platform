@@ -5,8 +5,8 @@ import { agents, defaultAgentId } from "@/constants/agents";
 import { AgentSidebar } from "@/components/dashboard/agent-sidebar";
 import { AgentChat } from "@/components/dashboard/agent-chat";
 
-export function DashboardClient() {
-  const [selectedId, setSelectedId] = useState(defaultAgentId);
+export function DashboardClient({ initialAgentId }: { initialAgentId?: string }) {
+  const [selectedId, setSelectedId] = useState(initialAgentId ?? defaultAgentId);
   const selectedAgent = agents.find((a) => a.id === selectedId) ?? agents[0];
 
   return (

@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { agents } from "@/constants/agents";
 
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_OUTPUT_TOKENS = 300;
@@ -22,12 +23,26 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-const SYSTEM_PROMPT =
+const GENERIC_SYSTEM_PROMPT =
   "You are the live public demo of an AvalonLabs AI Agent, embedded on the homepage for visitors who " +
   "haven't signed up yet. Give a genuinely useful, concise answer (2-4 sentences) to whatever the visitor " +
   "asks — code explanations, API/endpoint analysis, business plan feedback, or general questions. This is a " +
   "brief taste of the product, so stay short and concrete rather than exhaustive. Never say you are Claude " +
   "or made by Anthropic — you are an AvalonLabs AI Agent.";
+
+const BRAND_GUARD =
+  "\n\nThis is a brief, unauthenticated public demo — stay short and concrete (2-4 sentences) rather than " +
+  "exhaustive. Never say you are Claude or made by Anthropic — you are an AvalonLabs AI Agent.";
+
+/** Public demo can be pointed at a specific agent's real system prompt (see
+ *  src/constants/agents.ts) for a more on-topic preview on tool landing pages —
+ *  none of those prompts contain secrets, so this is safe to expose. Falls
+ *  back to the generic prompt when no valid agentId is given (homepage hero demo). */
+function resolveSystemPrompt(agentId: unknown): string {
+  if (typeof agentId !== "string") return GENERIC_SYSTEM_PROMPT;
+  const agent = agents.find((a) => a.id === agentId);
+  return agent ? agent.systemPrompt + BRAND_GUARD : GENERIC_SYSTEM_PROMPT;
+}
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -53,6 +68,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Message too long" }, { status: 400 });
   }
 
+  const systemPrompt = resolveSystemPrompt(body?.agentId);
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const encoder = new TextEncoder();
 
@@ -62,7 +78,7 @@ export async function POST(request: Request) {
         const claudeStream = anthropic.messages.stream({
           model: "claude-haiku-4-5",
           max_tokens: MAX_OUTPUT_TOKENS,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages: [{ role: "user", content: message }],
         });
 
