@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { siteConfig } from "@/lib/site-config";
+import { toolPages } from "@/constants/tools";
 
 const legalLinks = [
   { href: "/terms", label: "Terms of Service" },
@@ -13,6 +14,8 @@ const productLinks = [
   { href: "/#contact", label: "Contact" },
 ];
 
+const toolLinks = toolPages.map((tool) => ({ href: `/tools/${tool.slug}`, label: tool.name }));
+
 export function SiteFooter() {
   const year = new Date().getFullYear();
 
@@ -23,8 +26,8 @@ export function SiteFooter() {
         className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent"
       />
       <div className="mx-auto max-w-6xl px-6 py-12">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-          <div>
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
+          <div className="col-span-2 sm:col-span-1">
             <p className="text-lg font-bold text-white">{siteConfig.shortName}</p>
             <p className="mt-2 max-w-xs text-sm text-white/50">{siteConfig.tagline}</p>
           </div>
@@ -33,6 +36,19 @@ export function SiteFooter() {
             <p className="text-sm font-semibold text-white">Product</p>
             <ul className="mt-3 space-y-2">
               {productLinks.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="text-sm text-white/50 hover:text-white">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-white">Tools</p>
+            <ul className="mt-3 space-y-2">
+              {toolLinks.map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="text-sm text-white/50 hover:text-white">
                     {link.label}
