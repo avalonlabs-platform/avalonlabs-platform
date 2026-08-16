@@ -60,7 +60,7 @@ export const agents: Agent[] = [
   {
     id: "sql-optimizer",
     name: "SQL Optimizer",
-    emoji: "🗄️",
+    emoji: "💾",
     description: "Paste a slow query, get an optimized rewrite and indexing plan.",
     greeting: "Paste a slow query — and its schema or execution plan, if you have them — and I'll optimize it.",
     systemPrompt:
