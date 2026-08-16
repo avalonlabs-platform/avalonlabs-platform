@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Agent } from "@/constants/agents";
+import { AgentAccessBadge } from "@/components/dashboard/agent-access-badge";
 
 type ChatMessage = { id: number; role: "user" | "agent"; content: string; typing?: boolean };
 type ApiTurn = { role: "user" | "assistant"; content: string };
@@ -100,6 +101,7 @@ export function AgentChat({ agent }: { agent: Agent }) {
           <p className="text-sm font-semibold text-white">{agent.name}</p>
           <p className="text-xs text-white/40">Powered by Claude</p>
         </div>
+        <AgentAccessBadge agentId={agent.id} />
       </div>
 
       <div ref={scrollRef} className="h-[55vh] min-h-[20rem] space-y-4 overflow-y-auto px-6 py-6">

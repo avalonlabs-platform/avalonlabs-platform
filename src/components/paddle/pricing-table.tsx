@@ -2,12 +2,43 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { usePaddle } from "@/hooks/use-paddle";
 import { usePaddlePrices } from "@/hooks/use-paddle-prices";
+import { useAgentAccess } from "@/hooks/use-agent-access";
 import { pricingTiers, microserviceProducts } from "@/constants/pricing-tiers";
 import { siteConfig } from "@/lib/site-config";
 
 type Frequency = "month" | "year";
+
+/** Swaps to "Already Unlocked" once the signed-in user has this agent via an
+ *  active subscription or a prior one-time purchase, instead of always
+ *  offering a redundant "Buy once". Defaults to the buy button while the
+ *  check resolves (or for signed-out visitors) to avoid layout flicker. */
+function MicroserviceBuyButton({ agentId, onBuy }: { agentId: string; onBuy: () => void }) {
+  const access = useAgentAccess(agentId);
+
+  if (access === "has-access") {
+    return (
+      <Link
+        href={`/dashboard?agent=${agentId}`}
+        className="ml-4 flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20"
+      >
+        <span aria-hidden>✓</span> Already Unlocked
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onBuy}
+      className="ml-4 shrink-0 rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white/90 transition-colors hover:bg-white/5"
+    >
+      Buy once
+    </button>
+  );
+}
 
 export function PricingTable({ country = "OTHERS" }: { country?: string }) {
   const [frequency, setFrequency] = useState<Frequency>("month");
@@ -146,13 +177,10 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
                   <p className="font-medium text-white">{product.name}</p>
                   <p className="mt-1 text-sm text-white/60">{product.description}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openCheckout(product.priceId)}
-                  className="ml-4 shrink-0 rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white/90 transition-colors hover:bg-white/5"
-                >
-                  Buy once
-                </button>
+                <MicroserviceBuyButton
+                  agentId={product.agentId}
+                  onBuy={() => openCheckout(product.priceId)}
+                />
               </motion.div>
             ))}
           </div>

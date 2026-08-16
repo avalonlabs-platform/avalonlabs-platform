@@ -2,13 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { agents } from "@/constants/agents";
-import { pricingTiers, microserviceProducts, type PricingTier } from "@/constants/pricing-tiers";
-
-const COMPLETED_TRANSACTION_STATUS = "completed";
+import { pricingTiers, type PricingTier } from "@/constants/pricing-tiers";
+import { getAgentAccess } from "@/lib/agent-access";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_TURNS = 20;
-const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
 // Best-effort per-user rate limit, scaled by plan tier. In-memory, so it only
 // holds within a warm serverless instance — same caveat as the public demo's
@@ -79,54 +77,11 @@ export async function POST(request: Request) {
   let hasStandalonePurchase = false;
   let freeCredits = 0;
   try {
-    const internal = createInternalClient();
-    const { data: customer } = await internal
-      .from("customers")
-      .select("customer_id")
-      .eq("email", user.email ?? "")
-      .single();
-
-    if (customer) {
-      const { data: subscription } = await internal
-        .from("subscriptions")
-        .select("subscription_status, price_id")
-        .eq("customer_id", customer.customer_id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      hasActiveSubscription =
-        !!subscription && ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.subscription_status);
-      subscriptionPriceId = subscription?.price_id ?? "";
-
-      // No subscription? Fall back to checking whether this specific agent
-      // was unlocked by a completed one-time SaaS Microservice purchase.
-      if (!hasActiveSubscription) {
-        const microservice = microserviceProducts.find((m) => m.agentId === agent.id);
-        if (microservice?.priceId) {
-          const { data: purchase } = await internal
-            .from("transactions")
-            .select("transaction_id")
-            .eq("customer_id", customer.customer_id)
-            .eq("price_id", microservice.priceId)
-            .eq("status", COMPLETED_TRANSACTION_STATUS)
-            .limit(1)
-            .maybeSingle();
-          hasStandalonePurchase = !!purchase;
-        }
-      }
-    }
-
-    // Still no access via subscription or purchase? Fall back to the
-    // freemium free-credit balance (see supabase/schema.sql `profiles`).
-    if (!hasActiveSubscription && !hasStandalonePurchase) {
-      const { data: profile } = await internal
-        .from("profiles")
-        .select("free_credits")
-        .eq("id", user.id)
-        .maybeSingle();
-      freeCredits = profile?.free_credits ?? 0;
-    }
+    const access = await getAgentAccess(user, agent.id);
+    hasActiveSubscription = access.hasActiveSubscription;
+    subscriptionPriceId = access.subscriptionPriceId;
+    hasStandalonePurchase = access.hasStandalonePurchase;
+    freeCredits = access.freeCredits;
   } catch (error) {
     console.error("Chat: subscription/purchase/credit lookup failed —", error);
     return Response.json({ error: "Unable to verify subscription status" }, { status: 500 });

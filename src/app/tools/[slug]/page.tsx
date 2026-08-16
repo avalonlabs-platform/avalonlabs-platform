@@ -72,9 +72,6 @@ export default async function ToolPage({
 
       <section className="mx-auto max-w-2xl px-6 pb-16 text-center">
         <ToolCheckoutButtons agentId={tool.slug} priceId={priceId} />
-        <p className="mt-4 text-xs text-white/40">
-          No credit card required to try. 3 free credits, then subscribe or buy lifetime access to this agent.
-        </p>
       </section>
 
       <section className="mx-auto max-w-3xl px-6 pb-24">
