@@ -77,6 +77,7 @@ export async function POST(request: Request) {
   let hasActiveSubscription = false;
   let subscriptionPriceId = "";
   let hasStandalonePurchase = false;
+  let freeCredits = 0;
   try {
     const internal = createInternalClient();
     const { data: customer } = await internal
@@ -115,16 +116,29 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    // Still no access via subscription or purchase? Fall back to the
+    // freemium free-credit balance (see supabase/schema.sql `profiles`).
+    if (!hasActiveSubscription && !hasStandalonePurchase) {
+      const { data: profile } = await internal
+        .from("profiles")
+        .select("free_credits")
+        .eq("id", user.id)
+        .maybeSingle();
+      freeCredits = profile?.free_credits ?? 0;
+    }
   } catch (error) {
-    console.error("Chat: subscription/purchase lookup failed —", error);
+    console.error("Chat: subscription/purchase/credit lookup failed —", error);
     return Response.json({ error: "Unable to verify subscription status" }, { status: 500 });
   }
 
-  if (!hasActiveSubscription && !hasStandalonePurchase) {
+  const usingFreeCredit = !hasActiveSubscription && !hasStandalonePurchase && freeCredits > 0;
+
+  if (!hasActiveSubscription && !hasStandalonePurchase && !usingFreeCredit) {
     return Response.json(
       {
-        error:
-          "An active subscription or a one-time purchase of this AI Agent is required to chat with it.",
+        error: "You're out of free credits. Subscribe or purchase this AI Agent to keep chatting.",
+        reason: "no_credits",
       },
       { status: 402 }
     );
@@ -184,6 +198,17 @@ export async function POST(request: Request) {
         for await (const event of claudeStream) {
           if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             controller.enqueue(encoder.encode(event.delta.text));
+          }
+        }
+
+        // Only spend a credit once the response actually completed —
+        // a failed generation above skips this and falls to the catch block.
+        if (usingFreeCredit) {
+          try {
+            const internal = createInternalClient();
+            await internal.rpc("decrement_free_credit", { user_id: user.id });
+          } catch (creditError) {
+            console.error("Chat: failed to decrement free credit —", creditError);
           }
         }
       } catch (error) {

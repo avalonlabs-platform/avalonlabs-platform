@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Agent } from "@/constants/agents";
 
@@ -15,6 +16,7 @@ function nextId() {
 
 /** Remounted (via `key={agent.id}`) whenever the selected agent changes, so history resets per-agent. */
 export function AgentChat({ agent }: { agent: Agent }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: nextId(), role: "agent", content: agent.greeting },
   ]);
@@ -69,6 +71,9 @@ export function AgentChat({ agent }: { agent: Agent }) {
       const full = chunks.join("");
       setMessages((prev) => prev.map((m) => (m.id === agentMsgId ? { ...m, typing: false } : m)));
       historyRef.current = [...history, { role: "user", content: text }, { role: "assistant", content: full }];
+      // Re-fetch server components (credit badge, subscription status) in
+      // case this response spent a free credit.
+      router.refresh();
     } catch (error) {
       setIsThinking(false);
       const errorText = error instanceof Error ? error.message : "Something went wrong.";
