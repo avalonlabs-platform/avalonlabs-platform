@@ -9,9 +9,41 @@ import {
   type CustomerUpdatedEvent,
 } from "@paddle/paddle-node-sdk";
 import { createInternalClient } from "@/lib/supabase/server-internal";
+import { getPaddleInstance } from "@/lib/paddle/get-paddle-instance";
 
 type SubscriptionEvent = SubscriptionCreatedEvent | SubscriptionUpdatedEvent | SubscriptionCanceledEvent;
 type CustomerEvent = CustomerCreatedEvent | CustomerUpdatedEvent;
+
+/**
+ * Paddle doesn't guarantee `customer.created` is delivered (or processed)
+ * before `subscription.created` / `transaction.completed` for the same
+ * customer — and neither of those payloads carries the customer's email —
+ * so inserting a subscription/transaction row can hit the FK constraint on
+ * `customers` before a customer row exists. Called first in both handlers
+ * below: if the row is already there (the common case), this is a single
+ * cheap SELECT; only missing customers cost a Paddle API round-trip.
+ */
+async function ensureCustomerExists(customerId: string | null) {
+  if (!customerId) return;
+
+  const supabase = createInternalClient();
+  const { data: existing } = await supabase
+    .from("customers")
+    .select("customer_id")
+    .eq("customer_id", customerId)
+    .maybeSingle();
+  if (existing) return;
+
+  const paddle = getPaddleInstance();
+  const customer = await paddle.customers.get(customerId);
+
+  const { error } = await supabase.from("customers").upsert({
+    customer_id: customer.id,
+    email: customer.email,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
 
 /**
  * Paddle delivers at-least-once with the same event.eventId on every retry,
@@ -36,8 +68,10 @@ export async function processEvent(event: EventEntity) {
 }
 
 async function upsertSubscription(event: SubscriptionEvent) {
-  const supabase = createInternalClient();
   const sub = event.data;
+  await ensureCustomerExists(sub.customerId);
+
+  const supabase = createInternalClient();
   const firstItem = sub.items[0];
 
   const { error } = await supabase.from("subscriptions").upsert({
@@ -54,8 +88,10 @@ async function upsertSubscription(event: SubscriptionEvent) {
 }
 
 async function upsertTransaction(event: TransactionCompletedEvent) {
-  const supabase = createInternalClient();
   const txn = event.data;
+  await ensureCustomerExists(txn.customerId);
+
+  const supabase = createInternalClient();
   const firstItem = txn.items[0];
 
   const { error } = await supabase.from("transactions").upsert({
