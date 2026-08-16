@@ -20,22 +20,29 @@ type CustomerEvent = CustomerCreatedEvent | CustomerUpdatedEvent;
  * customer — and neither of those payloads carries the customer's email —
  * so inserting a subscription/transaction row can hit the FK constraint on
  * `customers` before a customer row exists. Called first in both handlers
- * below: if the row is already there (the common case), this is a single
- * cheap SELECT; only missing customers cost a Paddle API round-trip.
+ * below.
+ *
+ * Checks the *email*, not just row existence: a row can exist with a null
+ * email (e.g. a replayed/retried `customer.*` event landed with an empty
+ * payload field, or a resend race) and a plain existence check would skip
+ * it forever. Only a row with a real email short-circuits the Paddle API
+ * fetch — every other case (missing row, or row with no email) fetches the
+ * customer from Paddle and backfills it.
  */
-async function ensureCustomerExists(customerId: string | null) {
+async function ensureCustomerHasEmail(customerId: string | null) {
   if (!customerId) return;
 
   const supabase = createInternalClient();
   const { data: existing } = await supabase
     .from("customers")
-    .select("customer_id")
+    .select("email")
     .eq("customer_id", customerId)
     .maybeSingle();
-  if (existing) return;
+  if (existing?.email) return;
 
   const paddle = getPaddleInstance();
   const customer = await paddle.customers.get(customerId);
+  if (!customer.email) return; // nothing to backfill with — leave as-is rather than write another null
 
   const { error } = await supabase.from("customers").upsert({
     customer_id: customer.id,
@@ -69,7 +76,7 @@ export async function processEvent(event: EventEntity) {
 
 async function upsertSubscription(event: SubscriptionEvent) {
   const sub = event.data;
-  await ensureCustomerExists(sub.customerId);
+  await ensureCustomerHasEmail(sub.customerId);
 
   const supabase = createInternalClient();
   const firstItem = sub.items[0];
@@ -89,7 +96,7 @@ async function upsertSubscription(event: SubscriptionEvent) {
 
 async function upsertTransaction(event: TransactionCompletedEvent) {
   const txn = event.data;
-  await ensureCustomerExists(txn.customerId);
+  await ensureCustomerHasEmail(txn.customerId);
 
   const supabase = createInternalClient();
   const firstItem = txn.items[0];
@@ -108,11 +115,22 @@ async function upsertTransaction(event: TransactionCompletedEvent) {
 }
 
 async function upsertCustomer(event: CustomerEvent) {
-  const supabase = createInternalClient();
+  let email = event.data.email;
 
+  // Defensive: a malformed or stale/replayed event could carry an empty
+  // email — never let that null out a real one already on file. Fall back
+  // to a live Paddle API fetch instead of trusting the payload blindly.
+  if (!email) {
+    const paddle = getPaddleInstance();
+    const customer = await paddle.customers.get(event.data.id);
+    email = customer.email;
+  }
+  if (!email) return; // still nothing usable — skip rather than write a null
+
+  const supabase = createInternalClient();
   const { error } = await supabase.from("customers").upsert({
     customer_id: event.data.id,
-    email: event.data.email,
+    email,
     updated_at: new Date().toISOString(),
   });
 
