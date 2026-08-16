@@ -86,4 +86,18 @@ export const microserviceProducts: MicroserviceProduct[] = [
     priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_CONTRACT ?? "",
     agentId: "api-analyzer",
   },
+  {
+    name: "SQL Optimizer & Index Suggester",
+    description:
+      "Paste a slow SQL query, get an AI-generated optimized rewrite, indexing strategy, and execution plan explanation.",
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_SQL_OPTIMIZER ?? "",
+    agentId: "sql-optimizer",
+  },
+  {
+    name: "Security & Vulnerability Auditor",
+    description:
+      "Paste a code snippet, route, or endpoint, get an AI-generated OWASP Top 10 audit covering injection and authorization risks.",
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_MS_SECURITY_AUDITOR ?? "",
+    agentId: "security-auditor",
+  },
 ];
