@@ -23,6 +23,13 @@ export function ToolCheckoutButtons({ agentId, priceId }: { agentId: string; pri
   const nextParam = encodeURIComponent(`/dashboard?agent=${agentId}`);
   const dashboardHref = `/dashboard?agent=${agentId}`;
 
+  // Neutral placeholder while the access check resolves — avoids a flash of
+  // "Buy Lifetime Access" for a subscriber before it corrects to "Already
+  // Unlocked" a moment later.
+  if (access === "loading") {
+    return <div className="mx-auto h-12 w-72 max-w-full animate-pulse rounded-full bg-white/5" />;
+  }
+
   // Already unlocked via subscription or a prior one-time purchase — a
   // second "Buy" button would just be a confusing, redundant upsell.
   if (access === "has-access") {

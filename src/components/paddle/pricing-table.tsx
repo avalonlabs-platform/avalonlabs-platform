@@ -13,10 +13,13 @@ type Frequency = "month" | "year";
 
 /** Swaps to "Already Unlocked" once the signed-in user has this agent via an
  *  active subscription or a prior one-time purchase, instead of always
- *  offering a redundant "Buy once". Defaults to the buy button while the
- *  check resolves (or for signed-out visitors) to avoid layout flicker. */
+ *  offering a redundant "Buy once". */
 function MicroserviceBuyButton({ agentId, onBuy }: { agentId: string; onBuy: () => void }) {
   const access = useAgentAccess(agentId);
+
+  if (access === "loading") {
+    return <div className="ml-4 h-9 w-28 shrink-0 animate-pulse rounded-full bg-white/5" />;
+  }
 
   if (access === "has-access") {
     return (
