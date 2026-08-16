@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { pricingTiers } from "@/constants/pricing-tiers";
+import { normalizeEmail } from "@/lib/normalize-email";
 import { ManageSubscriptionButton } from "@/components/dashboard/manage-subscription-button";
 
 function planLabelForPriceId(priceId: string): string {
@@ -36,7 +37,7 @@ export async function SubscriptionStatus() {
     const { data: customer } = await internal
       .from("customers")
       .select("customer_id")
-      .eq("email", user.email)
+      .eq("email", normalizeEmail(user.email) ?? "")
       .single();
 
     subscription = customer

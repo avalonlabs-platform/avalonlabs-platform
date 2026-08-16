@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePaddle } from "@/hooks/use-paddle";
 import { usePaddlePrices } from "@/hooks/use-paddle-prices";
 import { useAgentAccess } from "@/hooks/use-agent-access";
+import { useSupabaseUser } from "@/hooks/use-supabase-user";
 import { pricingTiers, microserviceProducts } from "@/constants/pricing-tiers";
 import { siteConfig } from "@/lib/site-config";
 
@@ -47,6 +48,7 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
   const [frequency, setFrequency] = useState<Frequency>("month");
   const paddle = usePaddle();
   const { prices, loading } = usePaddlePrices(paddle, country);
+  const user = useSupabaseUser();
 
   function openCheckout(priceId: string) {
     if (!priceId) {
@@ -56,6 +58,14 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
     paddle?.Checkout.open({
       items: [{ priceId, quantity: 1 }],
       settings: { variant: "one-page" },
+      // Anonymous visitors can still check out — Paddle collects their email
+      // directly and the webhook links it up later. Signed-in visitors get
+      // it pre-filled and echoed back in custom_data, so the webhook doesn't
+      // have to guess or make an extra API call.
+      ...(user && {
+        customer: { email: user.email },
+        customData: { userId: user.id, userEmail: user.email },
+      }),
     });
   }
 

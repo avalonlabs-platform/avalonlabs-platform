@@ -1,5 +1,6 @@
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { microserviceProducts } from "@/constants/pricing-tiers";
+import { normalizeEmail } from "@/lib/normalize-email";
 
 const COMPLETED_TRANSACTION_STATUS = "completed";
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
@@ -28,7 +29,7 @@ export async function getAgentAccess(
   const { data: customer } = await internal
     .from("customers")
     .select("customer_id")
-    .eq("email", user.email ?? "")
+    .eq("email", normalizeEmail(user.email) ?? "")
     .single();
 
   if (customer) {

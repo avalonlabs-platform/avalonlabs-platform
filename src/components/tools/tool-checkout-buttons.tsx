@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePaddle } from "@/hooks/use-paddle";
 import { useAgentAccess } from "@/hooks/use-agent-access";
+import { useSupabaseUser } from "@/hooks/use-supabase-user";
 import { siteConfig } from "@/lib/site-config";
 
 export function ToolCheckoutButtons({ agentId, priceId }: { agentId: string; priceId: string }) {
   const paddle = usePaddle();
   const access = useAgentAccess(agentId);
+  const user = useSupabaseUser();
 
   function openCheckout() {
     if (!priceId) {
@@ -17,6 +19,10 @@ export function ToolCheckoutButtons({ agentId, priceId }: { agentId: string; pri
     paddle?.Checkout.open({
       items: [{ priceId, quantity: 1 }],
       settings: { variant: "one-page" },
+      ...(user && {
+        customer: { email: user.email },
+        customData: { userId: user.id, userEmail: user.email, agentId },
+      }),
     });
   }
 

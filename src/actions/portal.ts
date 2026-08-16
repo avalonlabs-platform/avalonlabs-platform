@@ -3,6 +3,7 @@
 import { getPaddleInstance } from "@/lib/paddle/get-paddle-instance";
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeEmail } from "@/lib/normalize-email";
 
 export async function createPortalSession() {
   // 1. Authenticate first — reject anonymous requests before any DB query or SDK call.
@@ -20,7 +21,7 @@ export async function createPortalSession() {
   const { data: customerRow } = await internal
     .from("customers")
     .select("customer_id")
-    .eq("email", user.email)
+    .eq("email", normalizeEmail(user.email) ?? "")
     .single();
 
   if (!customerRow?.customer_id) {

@@ -10,26 +10,34 @@ import {
 } from "@paddle/paddle-node-sdk";
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { getPaddleInstance } from "@/lib/paddle/get-paddle-instance";
+import { normalizeEmail } from "@/lib/normalize-email";
 
 type SubscriptionEvent = SubscriptionCreatedEvent | SubscriptionUpdatedEvent | SubscriptionCanceledEvent;
 type CustomerEvent = CustomerCreatedEvent | CustomerUpdatedEvent;
 
+/** custom_data set at checkout time (see pricing-table.tsx / tool-checkout-
+ *  buttons.tsx: `Checkout.open({ customData: { userEmail, userId } })`) — the
+ *  most direct source of truth, since it's tied to the exact Supabase account
+ *  that started checkout rather than whatever Paddle has on file. */
+function emailFromCustomData(customData: unknown): string | null {
+  if (!customData || typeof customData !== "object") return null;
+  const value = (customData as Record<string, unknown>).userEmail;
+  return typeof value === "string" ? normalizeEmail(value) : null;
+}
+
 /**
  * Paddle doesn't guarantee `customer.created` is delivered (or processed)
  * before `subscription.created` / `transaction.completed` for the same
- * customer — and neither of those payloads carries the customer's email —
- * so inserting a subscription/transaction row can hit the FK constraint on
- * `customers` before a customer row exists. Called first in both handlers
- * below.
+ * customer, and neither of those payloads reliably carries the customer's
+ * email — so inserting a subscription/transaction row can hit the FK
+ * constraint on `customers` before a customer row exists, or exist with a
+ * null email. Called first in both handlers below, in priority order:
  *
- * Checks the *email*, not just row existence: a row can exist with a null
- * email (e.g. a replayed/retried `customer.*` event landed with an empty
- * payload field, or a resend race) and a plain existence check would skip
- * it forever. Only a row with a real email short-circuits the Paddle API
- * fetch — every other case (missing row, or row with no email) fetches the
- * customer from Paddle and backfills it.
+ * 1. A customers row that already has an email — nothing to do.
+ * 2. `custom_data.userEmail` attached at checkout — no API call needed.
+ * 3. Live Paddle API fetch (`customers.get`) as the last resort.
  */
-async function ensureCustomerHasEmail(customerId: string | null) {
+async function ensureCustomerHasEmail(customerId: string | null, customData?: unknown) {
   if (!customerId) return;
 
   const supabase = createInternalClient();
@@ -40,13 +48,18 @@ async function ensureCustomerHasEmail(customerId: string | null) {
     .maybeSingle();
   if (existing?.email) return;
 
-  const paddle = getPaddleInstance();
-  const customer = await paddle.customers.get(customerId);
-  if (!customer.email) return; // nothing to backfill with — leave as-is rather than write another null
+  let email = emailFromCustomData(customData);
+
+  if (!email) {
+    const paddle = getPaddleInstance();
+    const customer = await paddle.customers.get(customerId);
+    email = normalizeEmail(customer.email);
+  }
+  if (!email) return; // nothing to backfill with — leave as-is rather than write another null
 
   const { error } = await supabase.from("customers").upsert({
-    customer_id: customer.id,
-    email: customer.email,
+    customer_id: customerId,
+    email,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;
@@ -76,7 +89,7 @@ export async function processEvent(event: EventEntity) {
 
 async function upsertSubscription(event: SubscriptionEvent) {
   const sub = event.data;
-  await ensureCustomerHasEmail(sub.customerId);
+  await ensureCustomerHasEmail(sub.customerId, sub.customData);
 
   const supabase = createInternalClient();
   const firstItem = sub.items[0];
@@ -96,7 +109,7 @@ async function upsertSubscription(event: SubscriptionEvent) {
 
 async function upsertTransaction(event: TransactionCompletedEvent) {
   const txn = event.data;
-  await ensureCustomerHasEmail(txn.customerId);
+  await ensureCustomerHasEmail(txn.customerId, txn.customData);
 
   const supabase = createInternalClient();
   const firstItem = txn.items[0];
@@ -115,15 +128,14 @@ async function upsertTransaction(event: TransactionCompletedEvent) {
 }
 
 async function upsertCustomer(event: CustomerEvent) {
-  let email = event.data.email;
+  // Priority: the payload's own email, then custom_data (covers the same
+  // out-of-order/replay cases as ensureCustomerHasEmail), then a live fetch.
+  let email = normalizeEmail(event.data.email) ?? emailFromCustomData(event.data.customData);
 
-  // Defensive: a malformed or stale/replayed event could carry an empty
-  // email — never let that null out a real one already on file. Fall back
-  // to a live Paddle API fetch instead of trusting the payload blindly.
   if (!email) {
     const paddle = getPaddleInstance();
     const customer = await paddle.customers.get(event.data.id);
-    email = customer.email;
+    email = normalizeEmail(customer.email);
   }
   if (!email) return; // still nothing usable — skip rather than write a null
 

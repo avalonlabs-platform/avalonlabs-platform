@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createInternalClient } from "@/lib/supabase/server-internal";
+import { normalizeEmail } from "@/lib/normalize-email";
 
 const DEFAULT_FREE_CREDITS = 3;
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
@@ -22,7 +23,7 @@ export async function CreditBadge() {
     const { data: customer } = await internal
       .from("customers")
       .select("customer_id")
-      .eq("email", user.email ?? "")
+      .eq("email", normalizeEmail(user.email) ?? "")
       .single();
 
     let hasActiveSubscription = false;
