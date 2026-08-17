@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { agents } from "@/constants/agents";
 import { pricingTiers, type PricingTier } from "@/constants/pricing-tiers";
 import { getAgentAccess } from "@/lib/agent-access";
+import { getRequestUser } from "@/lib/auth-request";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_TURNS = 20;
@@ -51,11 +51,10 @@ interface ChatRequestBody {
 }
 
 export async function POST(request: Request) {
-  // Dashboard chat only — reject unauthenticated requests before any API/SDK call.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Dashboard/mobile chat only — reject unauthenticated requests before any
+  // API/SDK call. Accepts either the web app's cookie session or a mobile
+  // client's `Authorization: Bearer <token>` (see getRequestUser).
+  const user = await getRequestUser(request);
 
   if (!user) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
