@@ -74,12 +74,14 @@ export async function POST(request: Request) {
   // Fail closed: if we can't verify billing status, don't grant access.
   let hasActiveSubscription = false;
   let subscriptionPriceId = "";
+  let subscriptionGrantsThisAgent = false;
   let hasStandalonePurchase = false;
   let freeCredits = 0;
   try {
     const access = await getAgentAccess(user, agent.id);
     hasActiveSubscription = access.hasActiveSubscription;
     subscriptionPriceId = access.subscriptionPriceId;
+    subscriptionGrantsThisAgent = access.subscriptionGrantsThisAgent;
     hasStandalonePurchase = access.hasStandalonePurchase;
     freeCredits = access.freeCredits;
   } catch (error) {
@@ -87,14 +89,20 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unable to verify subscription status" }, { status: 500 });
   }
 
-  const usingFreeCredit = !hasActiveSubscription && !hasStandalonePurchase && freeCredits > 0;
+  const usingFreeCredit = !subscriptionGrantsThisAgent && !hasStandalonePurchase && freeCredits > 0;
 
-  if (!hasActiveSubscription && !hasStandalonePurchase && !usingFreeCredit) {
+  if (!subscriptionGrantsThisAgent && !hasStandalonePurchase && !usingFreeCredit) {
     return Response.json(
-      {
-        error: "You're out of free credits. Subscribe or purchase this AI Agent to keep chatting.",
-        reason: "no_credits",
-      },
+      hasActiveSubscription
+        ? {
+            error:
+              "This AI Agent isn't included in your current plan. Upgrade to Pro or Advanced, or purchase lifetime access to it.",
+            reason: "not_in_plan",
+          }
+        : {
+            error: "You're out of free credits. Subscribe or purchase this AI Agent to keep chatting.",
+            reason: "no_credits",
+          },
       { status: 402 }
     );
   }

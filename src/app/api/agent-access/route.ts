@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const access = await getAgentAccess(user, agent.id);
     return Response.json({
       signedIn: true,
-      hasAccess: access.hasActiveSubscription || access.hasStandalonePurchase,
+      hasAccess: access.subscriptionGrantsThisAgent || access.hasStandalonePurchase,
     });
   } catch (error) {
     console.error("agent-access: lookup failed —", error);
