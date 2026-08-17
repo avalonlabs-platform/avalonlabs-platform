@@ -59,14 +59,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!data.url) return { error: "No sign-in URL returned." };
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    console.log("[oauth] redirectTo:", redirectTo, "result:", JSON.stringify(result));
+    if (result.type === "cancel" || result.type === "dismiss") {
+      return { error: null };
+    }
     if (result.type !== "success") {
-      return result.type === "cancel" ? { error: null } : { error: "Sign-in didn't complete." };
+      return { error: `Sign-in didn't complete (${result.type}).` };
     }
 
     const { params, errorCode } = QueryParams.getQueryParams(result.url);
     if (errorCode) return { error: errorCode };
     const { access_token, refresh_token } = params;
-    if (!access_token || !refresh_token) return { error: "Missing tokens in redirect." };
+    if (!access_token || !refresh_token) {
+      console.log("[oauth] redirect url had no tokens:", result.url);
+      return { error: "Signed in, but no tokens came back in the redirect. Check the Metro log for the full redirect URL." };
+    }
 
     const { error: setError } = await supabase.auth.setSession({ access_token, refresh_token });
     return { error: setError?.message ?? null };

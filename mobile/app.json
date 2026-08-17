@@ -16,7 +16,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "AvalonLabs uses the camera to scan codes for instant analysis."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

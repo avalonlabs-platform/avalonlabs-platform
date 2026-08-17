@@ -15,6 +15,7 @@ import { AGENTS, type AgentInfo } from "@/lib/agents";
 import { sendChatMessage } from "@/lib/api";
 import { addHistoryEntry } from "@/lib/history";
 import { colors } from "@/lib/theme";
+import { ScannerModal } from "@/components/ScannerModal";
 
 const MAX_MESSAGE_LENGTH = 4000;
 
@@ -24,9 +25,10 @@ export default function ActionScreen() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scannerVisible, setScannerVisible] = useState(false);
 
-  async function runAnalysis() {
-    const text = input.trim();
+  async function runAnalysis(overrideText?: string) {
+    const text = (overrideText ?? input).trim();
     if (!text || running) return;
 
     setRunning(true);
@@ -54,6 +56,12 @@ export default function ActionScreen() {
     }
   }
 
+  function handleScanned(data: string) {
+    setScannerVisible(false);
+    setInput(data);
+    runAnalysis(data);
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.background }}
@@ -61,7 +69,7 @@ export default function ActionScreen() {
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.heading}>Action</Text>
-        <Text style={styles.subheading}>Pick an agent, paste your input, run it.</Text>
+        <Text style={styles.subheading}>Pick an agent, scan a code or paste input, run it.</Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.agentRow}>
           {AGENTS.map((a) => {
@@ -82,12 +90,17 @@ export default function ActionScreen() {
         {/* "Viewfinder" input panel — terminal-style framing matching the web tool pages. */}
         <View style={styles.viewfinder}>
           <View style={styles.viewfinderHeader}>
-            <View style={styles.dotRow}>
-              <View style={[styles.dot, { backgroundColor: "#ff5f56" }]} />
-              <View style={[styles.dot, { backgroundColor: "#ffbd2e" }]} />
-              <View style={[styles.dot, { backgroundColor: "#27c93f" }]} />
+            <View style={styles.viewfinderHeaderLeft}>
+              <View style={styles.dotRow}>
+                <View style={[styles.dot, { backgroundColor: "#ff5f56" }]} />
+                <View style={[styles.dot, { backgroundColor: "#ffbd2e" }]} />
+                <View style={[styles.dot, { backgroundColor: "#27c93f" }]} />
+              </View>
+              <Text style={styles.viewfinderTitle}>{agent.id}</Text>
             </View>
-            <Text style={styles.viewfinderTitle}>{agent.id}</Text>
+            <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
+              <Text style={styles.scanButtonText}>📷 Scan</Text>
+            </Pressable>
           </View>
           <TextInput
             style={styles.viewfinderInput}
@@ -103,7 +116,7 @@ export default function ActionScreen() {
 
         <Pressable
           style={[styles.runButton, (!input.trim() || running) && { opacity: 0.5 }]}
-          onPress={runAnalysis}
+          onPress={() => runAnalysis()}
           disabled={!input.trim() || running}
         >
           {running ? <ActivityIndicator color="#fff" /> : <Text style={styles.runButtonText}>Run Analysis</Text>}
@@ -122,6 +135,12 @@ export default function ActionScreen() {
           </View>
         )}
       </ScrollView>
+
+      <ScannerModal
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        onScanned={handleScanned}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -183,12 +202,18 @@ const styles = StyleSheet.create({
   viewfinderHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  viewfinderHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   dotRow: {
     flexDirection: "row",
@@ -203,6 +228,18 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     fontSize: 12,
     fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
+  },
+  scanButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  scanButtonText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
   },
   viewfinderInput: {
     minHeight: 140,
