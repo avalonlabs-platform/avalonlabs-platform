@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ToolDemoExample } from "@/constants/tools";
 
@@ -38,6 +38,37 @@ function parseContent(text: string): ContentPart[] {
   return parts;
 }
 
+/** Lightweight inline-markdown for **bold** and `code` within a text segment
+ *  — no fenced code block here, just short emphasis/identifiers Claude tends
+ *  to sprinkle through prose (e.g. `customer_id`, **composite index**). */
+function renderInline(text: string) {
+  const pattern = /\*\*(.+?)\*\*|`(.+?)`/g;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = pattern.exec(text))) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    if (match[1] !== undefined) {
+      nodes.push(
+        <strong key={key++} className="font-semibold text-white">
+          {match[1]}
+        </strong>
+      );
+    } else {
+      nodes.push(
+        <code key={key++} className="rounded bg-white/10 px-1 py-0.5 text-xs text-glow-cyan">
+          {match[2]}
+        </code>
+      );
+    }
+    lastIndex = pattern.lastIndex;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
 function MessageContent({ content }: { content: string }) {
   const parts = parseContent(content);
   return (
@@ -57,7 +88,7 @@ function MessageContent({ content }: { content: string }) {
         ) : (
           part.content && (
             <span key={i} className="whitespace-pre-wrap">
-              {part.content}
+              {renderInline(part.content)}
             </span>
           )
         )
