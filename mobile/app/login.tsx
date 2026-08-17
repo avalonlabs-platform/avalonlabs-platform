@@ -11,8 +11,43 @@ import {
   View,
 } from "react-native";
 import { Redirect, router } from "expo-router";
+import Svg, { Path } from "react-native-svg";
 import { useAuth } from "@/lib/auth";
 import { colors } from "@/lib/theme";
+
+function GoogleIcon() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24">
+      <Path
+        fill="#4285F4"
+        d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.47a5.54 5.54 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.82Z"
+      />
+      <Path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.27v3.11A12 12 0 0 0 12 24Z"
+      />
+      <Path
+        fill="#FBBC05"
+        d="M5.27 14.28A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.28V6.61H1.27A12 12 0 0 0 0 12c0 1.94.46 3.77 1.27 5.39l4-3.11Z"
+      />
+      <Path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.27 6.61l4 3.11C6.22 6.86 8.87 4.75 12 4.75Z"
+      />
+    </Svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 24 24">
+      <Path
+        fill="#fff"
+        d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.22-6.83-5.97 6.83H1.65l7.73-8.84L1.24 2.25h6.83l4.72 6.24Zm-1.16 17.52h1.83L7.02 4.13H5.06Z"
+      />
+    </Svg>
+  );
+}
 
 export default function LoginScreen() {
   const { session, loading, signIn, signUp, signInWithOAuth } = useAuth();
@@ -149,7 +184,10 @@ export default function LoginScreen() {
           {oauthProvider === "google" ? (
             <ActivityIndicator color="#18181b" />
           ) : (
-            <Text style={styles.googleButtonText}>Continue with Google</Text>
+            <>
+              <GoogleIcon />
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </>
           )}
         </Pressable>
 
@@ -161,7 +199,10 @@ export default function LoginScreen() {
           {oauthProvider === "x" ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.xButtonText}>Continue with X</Text>
+            <>
+              <XIcon />
+              <Text style={styles.xButtonText}>Continue with X</Text>
+            </>
           )}
         </Pressable>
       </ScrollView>
@@ -256,9 +297,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   oauthButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     borderRadius: 999,
     paddingVertical: 13,
-    alignItems: "center",
     marginBottom: 12,
     borderWidth: 1,
   },
