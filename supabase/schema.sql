@@ -15,6 +15,40 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 CREATE INDEX IF NOT EXISTS customers_email_idx ON customers(email);
 
+-- `CREATE TABLE IF NOT EXISTS` above is a no-op if `customers` already
+-- existed before `email TEXT NOT NULL` was added to this file — the webhook
+-- bugs that let subscription.created/transaction.completed write a NULL or
+-- empty email happened on exactly that kind of pre-existing table. These
+-- retroactively close the gap at the database level, on top of the
+-- application-level fix in process-webhook.ts (see ensureCustomerHasEmail /
+-- normalizeEmail). If this ALTER fails with "column contains null values",
+-- some row still has a NULL email — find and fix it first:
+--   select customer_id from customers where email is null or email = '';
+ALTER TABLE customers ALTER COLUMN email SET NOT NULL;
+
+ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_email_not_empty;
+ALTER TABLE customers ADD CONSTRAINT customers_email_not_empty CHECK (email <> '');
+
+-- Belt-and-suspenders on top of src/lib/normalize-email.ts: normalize email
+-- at write time in the database too, so a future code path that forgets to
+-- call normalizeEmail() before an insert/update still can't leave a
+-- non-normalized value that email-based lookups (agent-access,
+-- subscription-status, credit-badge, portal) would silently fail to match.
+CREATE OR REPLACE FUNCTION public.normalize_customer_email()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.email := lower(trim(NEW.email));
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS normalize_customer_email_trigger ON customers;
+CREATE TRIGGER normalize_customer_email_trigger
+  BEFORE INSERT OR UPDATE ON customers
+  FOR EACH ROW EXECUTE FUNCTION public.normalize_customer_email();
+
 CREATE TABLE IF NOT EXISTS subscriptions (
   subscription_id TEXT PRIMARY KEY,    -- Paddle "sub_..."
   customer_id TEXT NOT NULL REFERENCES customers(customer_id),
