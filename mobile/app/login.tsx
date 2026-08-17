@@ -15,11 +15,12 @@ import { useAuth } from "@/lib/auth";
 import { colors } from "@/lib/theme";
 
 export default function LoginScreen() {
-  const { session, loading, signIn, signUp } = useAuth();
+  const { session, loading, signIn, signUp, signInWithOAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [submitting, setSubmitting] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<"google" | "x" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkEmail, setCheckEmail] = useState(false);
 
@@ -40,6 +41,18 @@ export default function LoginScreen() {
     }
     if (mode === "signup" && "needsEmailConfirm" in result && result.needsEmailConfirm) {
       setCheckEmail(true);
+      return;
+    }
+    router.replace("/(tabs)");
+  }
+
+  async function handleOAuth(provider: "google" | "x") {
+    setError(null);
+    setOauthProvider(provider);
+    const result = await signInWithOAuth(provider);
+    setOauthProvider(null);
+    if (result.error) {
+      setError(result.error);
       return;
     }
     router.replace("/(tabs)");
@@ -121,6 +134,36 @@ export default function LoginScreen() {
             <Text style={styles.switchTextAccent}>{mode === "signin" ? "Sign up" : "Log in"}</Text>
           </Text>
         </Pressable>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <Pressable
+          style={[styles.oauthButton, styles.googleButton, oauthProvider !== null && { opacity: 0.6 }]}
+          onPress={() => handleOAuth("google")}
+          disabled={oauthProvider !== null || submitting}
+        >
+          {oauthProvider === "google" ? (
+            <ActivityIndicator color="#18181b" />
+          ) : (
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={[styles.oauthButton, styles.xButton, oauthProvider !== null && { opacity: 0.6 }]}
+          onPress={() => handleOAuth("x")}
+          disabled={oauthProvider !== null || submitting}
+        >
+          {oauthProvider === "x" ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.xButtonText}>Continue with X</Text>
+          )}
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -194,6 +237,47 @@ const styles = StyleSheet.create({
   },
   switchTextAccent: {
     color: colors.cyan,
+    fontWeight: "600",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 28,
+    marginBottom: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    color: colors.textFaint,
+    fontSize: 12,
+    marginHorizontal: 12,
+  },
+  oauthButton: {
+    borderRadius: 999,
+    paddingVertical: 13,
+    alignItems: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  googleButton: {
+    backgroundColor: "#fff",
+    borderColor: "#fff",
+  },
+  googleButtonText: {
+    color: "#18181b",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  xButton: {
+    backgroundColor: "#000",
+    borderColor: colors.border,
+  },
+  xButtonText: {
+    color: "#fff",
+    fontSize: 14,
     fontWeight: "600",
   },
   secondaryButton: {
