@@ -4,6 +4,12 @@ import {
   type SubscriptionCreatedEvent,
   type SubscriptionUpdatedEvent,
   type SubscriptionCanceledEvent,
+  type SubscriptionActivatedEvent,
+  type SubscriptionTrialingEvent,
+  type SubscriptionPausedEvent,
+  type SubscriptionResumedEvent,
+  type SubscriptionPastDueEvent,
+  type SubscriptionImportedEvent,
   type TransactionCompletedEvent,
   type CustomerCreatedEvent,
   type CustomerUpdatedEvent,
@@ -12,7 +18,23 @@ import { createInternalClient } from "@/lib/supabase/server-internal";
 import { getPaddleInstance } from "@/lib/paddle/get-paddle-instance";
 import { normalizeEmail } from "@/lib/normalize-email";
 
-type SubscriptionEvent = SubscriptionCreatedEvent | SubscriptionUpdatedEvent | SubscriptionCanceledEvent;
+// Paddle's subscription lifecycle fires distinct event types for each status
+// transition — trialing -> active goes out as `subscription.activated`, not
+// `subscription.updated`, and paused/resumed/past_due/imported are separate
+// events too. All of them share the same SubscriptionNotification payload
+// shape (id/customerId/status/items/customData/scheduledChange), so every one
+// of them needs to reach upsertSubscription or the `subscriptions` mirror
+// table silently stops tracking that transition and drifts from Paddle.
+type SubscriptionEvent =
+  | SubscriptionCreatedEvent
+  | SubscriptionUpdatedEvent
+  | SubscriptionCanceledEvent
+  | SubscriptionActivatedEvent
+  | SubscriptionTrialingEvent
+  | SubscriptionPausedEvent
+  | SubscriptionResumedEvent
+  | SubscriptionPastDueEvent
+  | SubscriptionImportedEvent;
 type CustomerEvent = CustomerCreatedEvent | CustomerUpdatedEvent;
 
 /** custom_data set at checkout time (see pricing-table.tsx / tool-checkout-
@@ -75,6 +97,12 @@ export async function processEvent(event: EventEntity) {
     case EventName.SubscriptionCreated:
     case EventName.SubscriptionUpdated:
     case EventName.SubscriptionCanceled:
+    case EventName.SubscriptionActivated:
+    case EventName.SubscriptionTrialing:
+    case EventName.SubscriptionPaused:
+    case EventName.SubscriptionResumed:
+    case EventName.SubscriptionPastDue:
+    case EventName.SubscriptionImported:
       return upsertSubscription(event);
     case EventName.TransactionCompleted:
       return upsertTransaction(event);
