@@ -1,9 +1,26 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { Linking } from "react-native";
 import type { Session } from "@supabase/supabase-js";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 import * as QueryParams from "expo-auth-session/build/QueryParams";
 import { supabase } from "./supabase";
+
+// Always include a path so the redirect URI has a real path segment
+// (exp://host:port/--/auth/callback, or avalonlabs://auth/callback outside
+// Expo Go) rather than a bare host:port — some allowlist matchers only
+// treat a "**" wildcard as matching path segments, not a pathless origin.
+const OAUTH_REDIRECT_PATH = "auth/callback";
+
+async function applyTokensFromUrl(url: string): Promise<{ error: string | null } | null> {
+  const { params, errorCode } = QueryParams.getQueryParams(url);
+  if (errorCode) return { error: errorCode };
+  const { access_token, refresh_token } = params;
+  if (!access_token || !refresh_token) return null;
+
+  const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+  return { error: error?.message ?? null };
+}
 
 export type OAuthProvider = "google" | "x";
 
@@ -32,7 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
     });
 
-    return () => subscription.subscription.unsubscribe();
+    // Fallback path: the OS can deliver the OAuth redirect as a deep link
+    // even if WebBrowser.openAuthSessionAsync's own promise never resolves
+    // (observed on some Android/Custom-Tabs combinations). Harmless no-op
+    // for any URL that isn't carrying auth tokens.
+    const linkingSubscription = Linking.addEventListener("url", ({ url }) => {
+      applyTokensFromUrl(url);
+    });
+
+    return () => {
+      subscription.subscription.unsubscribe();
+      linkingSubscription.remove();
+    };
   }, []);
 
   async function signIn(email: string, password: string) {
@@ -49,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // or the "avalonlabs://" scheme in a standalone/dev-client build. This URL must be
   // added to Supabase's Auth > URL Configuration > Redirect URLs allowlist.
   async function signInWithOAuth(provider: OAuthProvider) {
-    const redirectTo = makeRedirectUri();
+    const redirectTo = makeRedirectUri({ path: OAUTH_REDIRECT_PATH });
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
@@ -66,15 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: `Sign-in didn't complete (${result.type}).` };
     }
 
-    const { params, errorCode } = QueryParams.getQueryParams(result.url);
-    if (errorCode) return { error: errorCode };
-    const { access_token, refresh_token } = params;
-    if (!access_token || !refresh_token) {
-      return { error: "Signed in, but no tokens came back in the redirect." };
-    }
-
-    const { error: setError } = await supabase.auth.setSession({ access_token, refresh_token });
-    return { error: setError?.message ?? null };
+    const applied = await applyTokensFromUrl(result.url);
+    if (!applied) return { error: "Signed in, but no tokens came back in the redirect." };
+    return applied;
   }
 
   async function signOut() {
