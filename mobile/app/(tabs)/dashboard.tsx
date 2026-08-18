@@ -2,7 +2,8 @@ import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { fetchAccount, type AccountInfo } from "@/lib/api";
-import { getHistory, type HistoryEntry } from "@/lib/history";
+import { fetchAnalyses, fetchAnalysesCount, type Analysis } from "@/lib/db";
+import { getAgent } from "@/lib/agents";
 import { useAuth } from "@/lib/auth";
 import { colors } from "@/lib/theme";
 
@@ -11,7 +12,8 @@ const FREE_CREDITS_TOTAL = 3;
 export default function DashboardScreen() {
   const { session, signOut } = useAuth();
   const [account, setAccount] = useState<AccountInfo | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [recentAnalyses, setRecentAnalyses] = useState<Analysis[]>([]);
+  const [totalScans, setTotalScans] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -19,9 +21,14 @@ export default function DashboardScreen() {
   async function load() {
     setError(null);
     try {
-      const [accountData, historyData] = await Promise.all([fetchAccount(), getHistory()]);
+      const [accountData, analysesData, count] = await Promise.all([
+        fetchAccount(),
+        fetchAnalyses(),
+        fetchAnalysesCount(),
+      ]);
       setAccount(accountData);
-      setHistory(historyData);
+      setRecentAnalyses(analysesData);
+      setTotalScans(count);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load account.");
     } finally {
@@ -37,13 +44,16 @@ export default function DashboardScreen() {
     }, [])
   );
 
-  const usageByAgent = history.reduce<Record<string, number>>((acc, entry) => {
-    acc[entry.agentName] = (acc[entry.agentName] ?? 0) + 1;
+  const usageByTool = recentAnalyses.reduce<Record<string, number>>((acc, entry) => {
+    const name = getAgent(entry.tool_name)?.name ?? entry.tool_name;
+    acc[name] = (acc[name] ?? 0) + 1;
     return acc;
   }, {});
-  const topAgents = Object.entries(usageByAgent)
+  const topTools = Object.entries(usageByTool)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
+
+  const creditsUsed = account && !account.subscription ? FREE_CREDITS_TOTAL - account.freeCredits : null;
 
   if (loading) {
     return (
@@ -79,7 +89,7 @@ export default function DashboardScreen() {
 
       {account && (
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Current plan</Text>
+          <Text style={styles.cardLabel}>Tier status</Text>
           {account.subscription ? (
             <View style={styles.planRow}>
               <Text style={styles.planName}>{account.subscription.tier ?? "Custom plan"}</Text>
@@ -88,14 +98,14 @@ export default function DashboardScreen() {
               </View>
             </View>
           ) : (
-            <Text style={styles.planName}>No active plan</Text>
+            <Text style={styles.planName}>Free tier</Text>
           )}
 
-          {!account.subscription && (
+          {creditsUsed !== null && account && (
             <View style={styles.creditsRow}>
-              <Text style={styles.cardLabel}>Free credits</Text>
+              <Text style={styles.cardLabel}>Credits used</Text>
               <Text style={styles.creditsValue}>
-                {account.freeCredits}/{FREE_CREDITS_TOTAL}
+                {creditsUsed}/{FREE_CREDITS_TOTAL}
               </Text>
             </View>
           )}
@@ -103,13 +113,13 @@ export default function DashboardScreen() {
       )}
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>Usage (this device)</Text>
-        <Text style={styles.usageTotal}>{history.length}</Text>
-        <Text style={styles.usageCaption}>total analyses run</Text>
+        <Text style={styles.cardLabel}>Total scans performed</Text>
+        <Text style={styles.usageTotal}>{totalScans}</Text>
+        <Text style={styles.usageCaption}>synced across every device on this account</Text>
 
-        {topAgents.length > 0 && (
+        {topTools.length > 0 && (
           <View style={styles.agentBreakdown}>
-            {topAgents.map(([name, count]) => (
+            {topTools.map(([name, count]) => (
               <View key={name} style={styles.agentBreakdownRow}>
                 <Text style={styles.agentBreakdownName}>{name}</Text>
                 <Text style={styles.agentBreakdownCount}>{count}</Text>

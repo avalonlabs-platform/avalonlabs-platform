@@ -1,7 +1,19 @@
-import { useCallback, useState } from "react";
-import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useFocusEffect } from "expo-router";
-import { clearHistory, getHistory, type HistoryEntry } from "@/lib/history";
+import { fetchAnalyses, type Analysis } from "@/lib/db";
+import { getAgent } from "@/lib/agents";
 import { colors } from "@/lib/theme";
 
 function formatTimestamp(iso: string): string {
@@ -15,64 +27,112 @@ function formatTimestamp(iso: string): string {
 }
 
 export default function CollectionScreen() {
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [selected, setSelected] = useState<HistoryEntry | null>(null);
+  const [entries, setEntries] = useState<Analysis[]>([]);
+  const [selected, setSelected] = useState<Analysis | null>(null);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Re-read on every focus (not just mount) so a fresh entry from the Action
-  // tab shows up immediately when switching back to this tab.
+  async function load(isRefresh: boolean) {
+    if (isRefresh) setRefreshing(true);
+    setError(null);
+    try {
+      const data = await fetchAnalyses();
+      setEntries(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load your analyses.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  // Re-fetch on every focus (not just mount) so a fresh entry from the
+  // Action tab shows up immediately when switching back to this tab.
   useFocusEffect(
     useCallback(() => {
-      getHistory().then(setEntries);
+      load(false);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
-  function handleClear() {
-    Alert.alert("Clear history", "Remove all saved analyses from this device?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Clear",
-        style: "destructive",
-        onPress: async () => {
-          await clearHistory();
-          setEntries([]);
-        },
-      },
-    ]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter((entry) => {
+      const toolName = getAgent(entry.tool_name)?.name ?? entry.tool_name;
+      return (
+        entry.input_data.toLowerCase().includes(q) ||
+        entry.result_data.toLowerCase().includes(q) ||
+        toolName.toLowerCase().includes(q)
+      );
+    });
+  }, [entries, search]);
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.cyan} />
+      </View>
+    );
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.header}>
         <Text style={styles.heading}>Collection</Text>
-        {entries.length > 0 && (
-          <Pressable onPress={handleClear}>
-            <Text style={styles.clearText}>Clear</Text>
-          </Pressable>
-        )}
       </View>
 
-      {entries.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>No analyses yet — run one from the Action tab.</Text>
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search your analyses"
+          placeholderTextColor={colors.textFaint}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+
+      {error && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>⚠️ {error}</Text>
         </View>
+      )}
+
+      {filtered.length === 0 ? (
+        <ScrollView
+          contentContainerStyle={styles.empty}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.cyan} />}
+        >
+          <Text style={styles.emptyText}>
+            {entries.length === 0 ? "No analyses yet — run one from the Action tab." : "No matches for that search."}
+          </Text>
+        </ScrollView>
       ) : (
         <FlatList
-          data={entries}
+          data={filtered}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <Pressable style={styles.card} onPress={() => setSelected(item)}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardAgent}>
-                  {item.agentEmoji} {item.agentName}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.cyan} />}
+          renderItem={({ item }) => {
+            const toolInfo = getAgent(item.tool_name);
+            return (
+              <Pressable style={styles.card} onPress={() => setSelected(item)}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardAgent}>
+                    {toolInfo?.emoji ?? "🔧"} {toolInfo?.name ?? item.tool_name}
+                  </Text>
+                  <Text style={styles.cardTime}>{formatTimestamp(item.created_at)}</Text>
+                </View>
+                <Text style={styles.cardQuery} numberOfLines={2}>
+                  {item.input_data}
                 </Text>
-                <Text style={styles.cardTime}>{formatTimestamp(item.createdAt)}</Text>
-              </View>
-              <Text style={styles.cardQuery} numberOfLines={2}>
-                {item.query}
-              </Text>
-            </Pressable>
-          )}
+              </Pressable>
+            );
+          }}
         />
       )}
 
@@ -80,7 +140,8 @@ export default function CollectionScreen() {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {selected?.agentEmoji} {selected?.agentName}
+              {selected ? (getAgent(selected.tool_name)?.emoji ?? "🔧") : ""}{" "}
+              {selected ? (getAgent(selected.tool_name)?.name ?? selected.tool_name) : ""}
             </Text>
             <Pressable onPress={() => setSelected(null)}>
               <Text style={styles.modalClose}>Close</Text>
@@ -88,9 +149,9 @@ export default function CollectionScreen() {
           </View>
           <ScrollView style={styles.modalBody}>
             <Text style={styles.modalSectionLabel}>Query</Text>
-            <Text style={styles.modalQuery}>{selected?.query}</Text>
+            <Text style={styles.modalQuery}>{selected?.input_data}</Text>
             <Text style={styles.modalSectionLabel}>Response</Text>
-            <Text style={styles.modalResponse}>{selected?.response}</Text>
+            <Text style={styles.modalResponse}>{selected?.result_data}</Text>
           </ScrollView>
         </View>
       </Modal>
@@ -99,6 +160,12 @@ export default function CollectionScreen() {
 }
 
 const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -112,13 +179,30 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
   },
-  clearText: {
-    color: colors.red,
+  searchRow: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: colors.text,
     fontSize: 14,
-    fontWeight: "500",
+  },
+  errorBox: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: colors.red,
+    fontSize: 13,
   },
   empty: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 40,
@@ -130,6 +214,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 20,
+    paddingTop: 0,
     gap: 10,
   },
   card: {

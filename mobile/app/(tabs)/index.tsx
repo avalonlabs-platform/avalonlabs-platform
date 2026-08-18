@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { AGENTS, getAgent, type AgentInfo } from "@/lib/agents";
 import { sendChatMessage, sendVisionMessage } from "@/lib/api";
-import { addHistoryEntry } from "@/lib/history";
+import { saveAnalysis } from "@/lib/db";
 import { colors } from "@/lib/theme";
 import { ScannerModal } from "@/components/ScannerModal";
 import { VisionCaptureModal } from "@/components/VisionCaptureModal";
@@ -45,13 +45,7 @@ export default function ActionScreen() {
     try {
       const response = await sendVisionMessage(visionAgent.id, base64, mediaType, input.trim(), []);
       setResult(response);
-      await addHistoryEntry({
-        agentId: visionAgent.id,
-        agentName: visionAgent.name,
-        agentEmoji: visionAgent.emoji,
-        query: "[Photo] " + (input.trim() || "Analyze this image."),
-        response,
-      });
+      await saveAnalysis(visionAgent.id, "[Photo] " + (input.trim() || "Analyze this image."), response);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Something went wrong.";
       setError(message);
@@ -75,13 +69,7 @@ export default function ActionScreen() {
     try {
       const response = await sendChatMessage(agent.id, text, []);
       setResult(response);
-      await addHistoryEntry({
-        agentId: agent.id,
-        agentName: agent.name,
-        agentEmoji: agent.emoji,
-        query: text,
-        response,
-      });
+      await saveAnalysis(agent.id, text, response);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Something went wrong.";
       setError(message);

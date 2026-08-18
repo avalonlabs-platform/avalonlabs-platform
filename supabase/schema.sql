@@ -152,3 +152,37 @@ BEGIN
   RETURN remaining;
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Mobile Collection/Dashboard history — one row per completed scan/analysis
+-- (see mobile/lib/db.ts). Written directly by the mobile client using the
+-- user's own session, not the service role — the INSERT policy's WITH CHECK
+-- is what stops a user from writing rows under someone else's user_id, so
+-- unlike `profiles` this is NOT a fail-closed/server-only table by design.
+-- `tool_name` stores an agent id (see src/constants/agents.ts) — the mobile
+-- app resolves it back to a display name/emoji via mobile/lib/agents.ts
+-- rather than denormalizing those into columns here.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_analyses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  tool_name TEXT NOT NULL,
+  input_data TEXT NOT NULL,
+  result_data TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS user_analyses_user_id_created_at_idx
+  ON user_analyses(user_id, created_at DESC);
+
+ALTER TABLE user_analyses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own analyses" ON user_analyses;
+CREATE POLICY "Users can view own analyses" ON user_analyses
+  FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own analyses" ON user_analyses;
+CREATE POLICY "Users can insert own analyses" ON user_analyses
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- No UPDATE/DELETE policy — history rows are append-only from the client;
+-- add one deliberately later if the app grows a "delete this entry" action.
