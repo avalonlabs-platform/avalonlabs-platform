@@ -77,7 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // or the "avalonlabs://" scheme in a standalone/dev-client build. This URL must be
   // added to Supabase's Auth > URL Configuration > Redirect URLs allowlist.
   async function signInWithOAuth(provider: OAuthProvider) {
-    const redirectTo = makeRedirectUri({ path: OAUTH_REDIRECT_PATH });
+    // Explicit `scheme` is a no-op in Expo Go (it isn't one of Expo Go's own
+    // recognized schemes, so expo-linking silently falls back to "exp"), and
+    // becomes the real deep-link scheme in a dev-client/standalone build.
+    const redirectTo = makeRedirectUri({ scheme: "avalonlabs", path: OAUTH_REDIRECT_PATH });
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
