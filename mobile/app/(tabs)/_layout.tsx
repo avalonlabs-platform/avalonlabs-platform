@@ -1,17 +1,32 @@
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View, type ColorValue } from "react-native";
 import { Redirect, Tabs } from "expo-router";
 import { useAuth } from "@/lib/auth";
+import { hasSeenOnboarding } from "@/lib/onboarding";
 import { colors } from "@/lib/theme";
 
 export default function TabsLayout() {
   const { session, loading } = useAuth();
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [onboardingSeen, setOnboardingSeen] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    hasSeenOnboarding().then((seen) => {
+      setOnboardingSeen(seen);
+      setOnboardingChecked(true);
+    });
+  }, []);
+
+  if (loading || !onboardingChecked) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
         <ActivityIndicator color={colors.cyan} />
       </View>
     );
+  }
+
+  if (!onboardingSeen) {
+    return <Redirect href="/onboarding" />;
   }
 
   if (!session) {

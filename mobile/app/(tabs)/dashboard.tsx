@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { fetchAccount, type AccountInfo } from "@/lib/api";
 import { fetchAnalyses, fetchAnalysesCount, type Analysis } from "@/lib/db";
 import { getAgent } from "@/lib/agents";
@@ -8,6 +9,9 @@ import { useAuth } from "@/lib/auth";
 import { colors } from "@/lib/theme";
 
 const FREE_CREDITS_TOTAL = 3;
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
+const PRIVACY_URL = `${API_BASE}/privacy`;
+const TERMS_URL = `${API_BASE}/terms`;
 
 export default function DashboardScreen() {
   const { session, signOut } = useAuth();
@@ -17,6 +21,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   async function load() {
     setError(null);
@@ -78,7 +83,12 @@ export default function DashboardScreen() {
         />
       }
     >
-      <Text style={styles.heading}>Dashboard</Text>
+      <View style={styles.headingRow}>
+        <Text style={styles.heading}>Dashboard</Text>
+        <Pressable onPress={() => setSettingsVisible(true)} hitSlop={8}>
+          <Text style={styles.settingsIcon}>⚙️</Text>
+        </Pressable>
+      </View>
       <Text style={styles.email}>{session?.user.email}</Text>
 
       {error && (
@@ -132,6 +142,33 @@ export default function DashboardScreen() {
       <Pressable style={styles.signOutButton} onPress={signOut}>
         <Text style={styles.signOutText}>Log out</Text>
       </Pressable>
+
+      <Modal
+        visible={settingsVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSettingsVisible(false)}
+      >
+        <Pressable style={styles.settingsBackdrop} onPress={() => setSettingsVisible(false)}>
+          <Pressable style={styles.settingsSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.settingsHeader}>
+              <Text style={styles.settingsTitle}>Settings</Text>
+              <Pressable onPress={() => setSettingsVisible(false)}>
+                <Text style={styles.modalClose}>Close</Text>
+              </Pressable>
+            </View>
+
+            <Pressable style={styles.settingsRow} onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)}>
+              <Text style={styles.settingsRowText}>Privacy Policy</Text>
+              <Text style={styles.settingsRowChevron}>›</Text>
+            </Pressable>
+            <Pressable style={styles.settingsRow} onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)}>
+              <Text style={styles.settingsRowText}>Terms of Service</Text>
+              <Text style={styles.settingsRowChevron}>›</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -147,10 +184,18 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 60,
   },
+  headingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   heading: {
     color: colors.text,
     fontSize: 24,
     fontWeight: "700",
+  },
+  settingsIcon: {
+    fontSize: 20,
   },
   email: {
     color: colors.textFaint,
@@ -248,5 +293,54 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.red,
     fontSize: 13,
+  },
+  settingsBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  settingsSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderBottomWidth: 0,
+    paddingBottom: 40,
+  },
+  settingsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  settingsTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  modalClose: {
+    color: colors.cyan,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  settingsRowText: {
+    color: colors.text,
+    fontSize: 15,
+  },
+  settingsRowChevron: {
+    color: colors.textFaint,
+    fontSize: 18,
   },
 });

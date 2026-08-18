@@ -7,12 +7,17 @@
     "scheme": "avalonlabs",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "icon": "./assets/images/icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.avalonlabs.mobile"
     },
     "android": {
-      "package": "com.avalonlabs.mobile"
+      "package": "com.avalonlabs.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
+        "backgroundColor": "#0d1117"
+      }
     },
     "plugins": [
       "expo-router",
@@ -28,6 +33,15 @@
         "expo-image-picker",
         {
           "photosPermission": "AvalonLabs uses your photo library to analyze screenshots of code, errors, and diagrams."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "backgroundColor": "#0d1117",
+          "resizeMode": "contain",
+          "imageWidth": 200
         }
       ]
     ],
