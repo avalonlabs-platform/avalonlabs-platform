@@ -11,13 +11,16 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { AGENTS, type AgentInfo } from "@/lib/agents";
-import { sendChatMessage } from "@/lib/api";
+import { AGENTS, getAgent, type AgentInfo } from "@/lib/agents";
+import { sendChatMessage, sendVisionMessage } from "@/lib/api";
 import { addHistoryEntry } from "@/lib/history";
 import { colors } from "@/lib/theme";
 import { ScannerModal } from "@/components/ScannerModal";
+import { VisionCaptureModal } from "@/components/VisionCaptureModal";
+import { ResultCard } from "@/components/ResultCard";
 
 const MAX_MESSAGE_LENGTH = 4000;
+const VISION_AGENT_ID = "vision-analyzer";
 
 export default function ActionScreen() {
   const [agent, setAgent] = useState<AgentInfo>(AGENTS[0]);
@@ -26,6 +29,39 @@ export default function ActionScreen() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scannerVisible, setScannerVisible] = useState(false);
+  const [visionVisible, setVisionVisible] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<{ base64: string; mediaType: string } | null>(null);
+
+  async function runVisionAnalysis(base64: string, mediaType: string) {
+    if (running) return;
+    const visionAgent = getAgent(VISION_AGENT_ID) ?? agent;
+
+    setAgent(visionAgent);
+    setCapturedImage({ base64, mediaType });
+    setRunning(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const response = await sendVisionMessage(visionAgent.id, base64, mediaType, input.trim(), []);
+      setResult(response);
+      await addHistoryEntry({
+        agentId: visionAgent.id,
+        agentName: visionAgent.name,
+        agentEmoji: visionAgent.emoji,
+        query: "[Photo] " + (input.trim() || "Analyze this image."),
+        response,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Something went wrong.";
+      setError(message);
+      if (message.toLowerCase().includes("plan") || message.toLowerCase().includes("credit")) {
+        Alert.alert("Access required", message);
+      }
+    } finally {
+      setRunning(false);
+    }
+  }
 
   async function runAnalysis(overrideText?: string) {
     const text = (overrideText ?? input).trim();
@@ -34,6 +70,7 @@ export default function ActionScreen() {
     setRunning(true);
     setError(null);
     setResult(null);
+    setCapturedImage(null);
 
     try {
       const response = await sendChatMessage(agent.id, text, []);
@@ -98,9 +135,14 @@ export default function ActionScreen() {
               </View>
               <Text style={styles.viewfinderTitle}>{agent.id}</Text>
             </View>
-            <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
-              <Text style={styles.scanButtonText}>📷 Scan</Text>
-            </Pressable>
+            <View style={styles.headerButtonRow}>
+              <Pressable style={styles.scanButton} onPress={() => setScannerVisible(true)}>
+                <Text style={styles.scanButtonText}>📷 Scan</Text>
+              </Pressable>
+              <Pressable style={styles.scanButton} onPress={() => setVisionVisible(true)}>
+                <Text style={styles.scanButtonText}>📸 Photo</Text>
+              </Pressable>
+            </View>
           </View>
           <TextInput
             style={styles.viewfinderInput}
@@ -129,10 +171,13 @@ export default function ActionScreen() {
         )}
 
         {result && (
-          <View style={styles.resultBox}>
-            <Text style={styles.resultLabel}>{agent.emoji} {agent.name}</Text>
-            <Text style={styles.resultText}>{result}</Text>
-          </View>
+          <ResultCard
+            agentEmoji={agent.emoji}
+            agentName={agent.name}
+            imageBase64={capturedImage?.base64 ?? null}
+            imageMediaType={capturedImage?.mediaType ?? null}
+            text={result}
+          />
         )}
       </ScrollView>
 
@@ -140,6 +185,15 @@ export default function ActionScreen() {
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onScanned={handleScanned}
+      />
+
+      <VisionCaptureModal
+        visible={visionVisible}
+        onClose={() => setVisionVisible(false)}
+        onCaptured={(base64, mediaType) => {
+          setVisionVisible(false);
+          runVisionAnalysis(base64, mediaType);
+        }}
       />
     </KeyboardAvoidingView>
   );
@@ -229,6 +283,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
   },
+  headerButtonRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
   scanButton: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -266,17 +324,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: colors.surface,
     padding: 16,
-  },
-  resultLabel: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  resultText: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21,
   },
   errorText: {
     color: colors.red,

@@ -63,6 +63,14 @@ export const AGENTS: AgentInfo[] = [
     greeting: "Paste a code snippet, backend route, or API endpoint to audit.",
     isMicroservice: true,
   },
+  {
+    id: "vision-analyzer",
+    name: "Vision Analyzer",
+    emoji: "📸",
+    description: "Photograph code, a terminal error, or an architecture diagram for instant analysis.",
+    greeting: "Snap a photo of code, a terminal error, or a diagram and I'll analyze it.",
+    isMicroservice: false,
+  },
 ];
 
 export function getAgent(id: string): AgentInfo | undefined {

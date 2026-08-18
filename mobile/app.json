@@ -21,7 +21,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "AvalonLabs uses the camera to scan codes for instant analysis."
+          "cameraPermission": "AvalonLabs uses the camera to scan codes and photograph code, errors, and diagrams for instant analysis."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "AvalonLabs uses your photo library to analyze screenshots of code, errors, and diagrams."
         }
       ]
     ],

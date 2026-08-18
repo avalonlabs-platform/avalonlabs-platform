@@ -44,11 +44,22 @@ interface ChatTurn {
   content: string;
 }
 
+interface ChatImage {
+  /** Base64-encoded image bytes, no "data:" URL prefix. */
+  data?: string;
+  mediaType?: string;
+}
+
 interface ChatRequestBody {
   agentId?: string;
   message?: string;
   history?: ChatTurn[];
+  image?: ChatImage;
 }
+
+const ALLOWED_IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+// Claude's per-image limit is 5MB of raw bytes; base64 runs ~33% larger.
+const MAX_IMAGE_BASE64_LENGTH = 7_000_000;
 
 export async function POST(request: Request) {
   // Dashboard/mobile chat only — reject unauthenticated requests before any
@@ -61,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   const body: ChatRequestBody = await request.json();
-  const { agentId, message, history } = body;
+  const { agentId, message, history, image } = body;
 
   // The system prompt is resolved server-side from a trusted lookup — the
   // client only ever supplies an agent id, never prompt text.
@@ -124,10 +135,21 @@ export async function POST(request: Request) {
     return Response.json({ error: "Chat is not configured" }, { status: 500 });
   }
 
-  if (!message || typeof message !== "string" || !message.trim()) {
+  const hasImage = !!image?.data;
+
+  if (hasImage) {
+    if (typeof image!.mediaType !== "string" || !ALLOWED_IMAGE_MEDIA_TYPES.has(image!.mediaType)) {
+      return Response.json({ error: "Unsupported image type" }, { status: 400 });
+    }
+    if (typeof image!.data !== "string" || image!.data.length > MAX_IMAGE_BASE64_LENGTH) {
+      return Response.json({ error: "Image too large" }, { status: 400 });
+    }
+  }
+
+  if (!hasImage && (!message || typeof message !== "string" || !message.trim())) {
     return Response.json({ error: "Missing message" }, { status: 400 });
   }
-  if (message.length > MAX_MESSAGE_LENGTH) {
+  if (message && message.length > MAX_MESSAGE_LENGTH) {
     return Response.json({ error: "Message too long" }, { status: 400 });
   }
 
@@ -139,9 +161,24 @@ export async function POST(request: Request) {
     .slice(-MAX_HISTORY_TURNS)
     .map((turn) => ({ role: turn.role, content: turn.content.slice(0, MAX_MESSAGE_LENGTH) }));
 
+  const userText = message?.trim() || "Analyze this image.";
+  const userContent: Anthropic.MessageParam["content"] = hasImage
+    ? [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: image!.mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+            data: image!.data!,
+          },
+        },
+        { type: "text", text: userText },
+      ]
+    : userText;
+
   const messages: Anthropic.MessageParam[] = [
     ...trimmedHistory,
-    { role: "user", content: message },
+    { role: "user", content: userContent },
   ];
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

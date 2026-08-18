@@ -45,6 +45,32 @@ export async function sendChatMessage(
   return res.text();
 }
 
+/**
+ * Same as sendChatMessage, but attaches a photo for Claude Vision analysis.
+ * `imageBase64` is raw base64 with no "data:" URL prefix.
+ */
+export async function sendVisionMessage(
+  agentId: string,
+  imageBase64: string,
+  mediaType: string,
+  message: string,
+  history: ChatTurn[]
+): Promise<string> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify({ agentId, message, history, image: { data: imageBase64, mediaType } }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? `Request failed (${res.status})`);
+  }
+
+  return res.text();
+}
+
 export interface AccountInfo {
   email: string;
   subscription: { status: string; tier: string | null; priceId: string } | null;
