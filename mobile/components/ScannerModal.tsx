@@ -59,7 +59,7 @@ export function ScannerModal({ visible, onClose, onScanned }: ScannerModalProps)
         ) : (
           <>
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               facing="back"
               barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
               onBarcodeScanned={scannedRef.current ? undefined : handleScan}
