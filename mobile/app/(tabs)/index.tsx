@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -12,11 +11,22 @@ import {
   View,
 } from "react-native";
 import { AGENTS, getAgent, type AgentInfo } from "@/lib/agents";
-import { sendChatMessage, sendVisionMessage } from "@/lib/api";
+import { sendChatMessage } from "@/lib/api";
 import { saveAnalysis } from "@/lib/db";
 import { colors } from "@/lib/theme";
+import {
+  MAX_IMAGE_FILE_BYTES,
+  MAX_MOBILE_ATTACHMENTS,
+  estimateBase64Bytes,
+  nextAttachmentId,
+  toAttachmentPayload,
+  type MobileAttachment,
+} from "@/lib/attachments";
+import { hapticComplete, hapticError, hapticSend } from "@/lib/haptics";
 import { ScannerModal } from "@/components/ScannerModal";
 import { VisionCaptureModal } from "@/components/VisionCaptureModal";
+import { AttachmentPreviewBar } from "@/components/AttachmentPreviewBar";
+import { SkeletonPulse } from "@/components/SkeletonPulse";
 import { ResultCard } from "@/components/ResultCard";
 
 const MAX_MESSAGE_LENGTH = 4000;
@@ -27,50 +37,80 @@ export default function ActionScreen() {
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [resultAgent, setResultAgent] = useState<AgentInfo>(AGENTS[0]);
+  const [resultImages, setResultImages] = useState<{ base64: string; mediaType: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [visionVisible, setVisionVisible] = useState(false);
-  const [capturedImage, setCapturedImage] = useState<{ base64: string; mediaType: string } | null>(null);
+  const [attachments, setAttachments] = useState<MobileAttachment[]>([]);
 
-  async function runVisionAnalysis(base64: string, mediaType: string) {
-    if (running) return;
-    const visionAgent = getAgent(VISION_AGENT_ID) ?? agent;
-
-    setAgent(visionAgent);
-    setCapturedImage({ base64, mediaType });
-    setRunning(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const response = await sendVisionMessage(visionAgent.id, base64, mediaType, input.trim(), []);
-      setResult(response);
-      await saveAnalysis(visionAgent.id, "[Photo] " + (input.trim() || "Analyze this image."), response);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Something went wrong.";
-      setError(message);
-      if (message.toLowerCase().includes("plan") || message.toLowerCase().includes("credit")) {
-        Alert.alert("Access required", message);
-      }
-    } finally {
-      setRunning(false);
+  function addAttachment(base64: string, mediaType: string) {
+    const sizeBytes = estimateBase64Bytes(base64);
+    if (sizeBytes > MAX_IMAGE_FILE_BYTES) {
+      Alert.alert("Photo too large", "That photo is too large to attach even after compression — try another.");
+      return;
     }
+
+    setAttachments((current) => {
+      if (current.length >= MAX_MOBILE_ATTACHMENTS) return current;
+      // First attachment of a fresh message — default to Vision Analyzer,
+      // the agent tuned for reading photographed code/errors/diagrams.
+      // The user can still tap a different agent chip afterward; this is
+      // just a helpful starting point, not an exclusive vision-only path.
+      if (current.length === 0) {
+        setAgent(getAgent(VISION_AGENT_ID) ?? agent);
+      }
+      return [
+        ...current,
+        {
+          id: nextAttachmentId(),
+          uri: `data:${mediaType};base64,${base64}`,
+          base64,
+          mediaType: mediaType as MobileAttachment["mediaType"],
+          sizeBytes,
+        },
+      ];
+    });
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((current) => current.filter((a) => a.id !== id));
   }
 
   async function runAnalysis(overrideText?: string) {
     const text = (overrideText ?? input).trim();
-    if (!text || running) return;
+    if ((!text && attachments.length === 0) || running) return;
+
+    const submittedAttachments = attachments;
+    const submittedAgent = agent;
 
     setRunning(true);
     setError(null);
     setResult(null);
-    setCapturedImage(null);
+    setResultAgent(submittedAgent);
+    setResultImages(submittedAttachments.map((a) => ({ base64: a.base64, mediaType: a.mediaType })));
+    hapticSend();
 
     try {
-      const response = await sendChatMessage(agent.id, text, []);
+      const payload = submittedAttachments.map((a, idx) => toAttachmentPayload(a, idx));
+      const response = await sendChatMessage(submittedAgent.id, text, [], payload);
       setResult(response);
-      await saveAnalysis(agent.id, text, response);
+      hapticComplete();
+
+      const label =
+        submittedAttachments.length > 0
+          ? `[${submittedAttachments.length} Photo${submittedAttachments.length > 1 ? "s" : ""}] ${
+              text || "Analyze this image."
+            }`
+          : text;
+      await saveAnalysis(submittedAgent.id, label, response);
+
+      // Only clear the input/attachments once the run actually succeeded —
+      // a failure leaves everything in place so the user can just retry.
+      setInput("");
+      setAttachments([]);
     } catch (e) {
+      hapticError();
       const message = e instanceof Error ? e.message : "Something went wrong.";
       setError(message);
       if (message.toLowerCase().includes("plan") || message.toLowerCase().includes("credit")) {
@@ -87,6 +127,8 @@ export default function ActionScreen() {
     runAnalysis(data);
   }
 
+  const canRun = (!!input.trim() || attachments.length > 0) && !running;
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.background }}
@@ -94,7 +136,7 @@ export default function ActionScreen() {
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.heading}>Action</Text>
-        <Text style={styles.subheading}>Pick an agent, scan a code or paste input, run it.</Text>
+        <Text style={styles.subheading}>Pick an agent, scan a code, attach a photo, or paste input, then run it.</Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.agentRow}>
           {AGENTS.map((a) => {
@@ -111,6 +153,8 @@ export default function ActionScreen() {
             );
           })}
         </ScrollView>
+
+        <AttachmentPreviewBar attachments={attachments} onRemove={removeAttachment} />
 
         {/* "Viewfinder" input panel — terminal-style framing matching the web tool pages. */}
         <View style={styles.viewfinder}>
@@ -145,11 +189,15 @@ export default function ActionScreen() {
         </View>
 
         <Pressable
-          style={[styles.runButton, (!input.trim() || running) && { opacity: 0.5 }]}
+          style={[styles.runButton, !canRun && { opacity: 0.5 }]}
           onPress={() => runAnalysis()}
-          disabled={!input.trim() || running}
+          disabled={!canRun}
         >
-          {running ? <ActivityIndicator color="#fff" /> : <Text style={styles.runButtonText}>Run Analysis</Text>}
+          {running ? (
+            <Text style={styles.runButtonText}>Running…</Text>
+          ) : (
+            <Text style={styles.runButtonText}>Run Analysis</Text>
+          )}
         </Pressable>
 
         {error && (
@@ -158,12 +206,13 @@ export default function ActionScreen() {
           </View>
         )}
 
+        {running && !result && <SkeletonPulse />}
+
         {result && (
           <ResultCard
-            agentEmoji={agent.emoji}
-            agentName={agent.name}
-            imageBase64={capturedImage?.base64 ?? null}
-            imageMediaType={capturedImage?.mediaType ?? null}
+            agentEmoji={resultAgent.emoji}
+            agentName={resultAgent.name}
+            images={resultImages}
             text={result}
           />
         )}
@@ -178,10 +227,8 @@ export default function ActionScreen() {
       <VisionCaptureModal
         visible={visionVisible}
         onClose={() => setVisionVisible(false)}
-        onCaptured={(base64, mediaType) => {
-          setVisionVisible(false);
-          runVisionAnalysis(base64, mediaType);
-        }}
+        onCaptured={(base64, mediaType) => addAttachment(base64, mediaType)}
+        remainingSlots={MAX_MOBILE_ATTACHMENTS - attachments.length}
       />
     </KeyboardAvoidingView>
   );

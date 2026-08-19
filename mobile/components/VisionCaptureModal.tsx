@@ -13,7 +13,15 @@ const JPEG_QUALITY = 0.7;
 interface VisionCaptureModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Fired once per photo — for a multi-select gallery pick this fires
+   *  once for each selected asset, in order. */
   onCaptured: (base64: string, mediaType: string) => void;
+  /** How many more attachments the Action screen will currently accept
+   *  (see lib/attachments.ts's MAX_MOBILE_ATTACHMENTS) — bounds the
+   *  gallery's multi-select limit and disables the shutter once full,
+   *  rather than letting the modal collect photos the caller will just
+   *  drop on the floor. */
+  remainingSlots: number;
 }
 
 async function compressToBase64(uri: string): Promise<string> {
@@ -29,13 +37,14 @@ async function compressToBase64(uri: string): Promise<string> {
   return result.base64;
 }
 
-export function VisionCaptureModal({ visible, onClose, onCaptured }: VisionCaptureModalProps) {
+export function VisionCaptureModal({ visible, onClose, onCaptured, remainingSlots }: VisionCaptureModalProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [busy, setBusy] = useState(false);
+  const isFull = remainingSlots <= 0;
 
   async function handleCapture() {
-    if (busy || !cameraRef.current) return;
+    if (busy || isFull || !cameraRef.current) return;
     setBusy(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
@@ -51,22 +60,32 @@ export function VisionCaptureModal({ visible, onClose, onCaptured }: VisionCaptu
   }
 
   async function handlePickFromGallery() {
-    if (busy) return;
+    if (busy || isFull) return;
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.8,
+      allowsMultipleSelection: remainingSlots > 1,
+      selectionLimit: remainingSlots,
     });
-    if (result.canceled || !result.assets[0]) return;
+    if (result.canceled || result.assets.length === 0) return;
 
     setBusy(true);
     try {
-      const base64 = await compressToBase64(result.assets[0].uri);
-      onCaptured(base64, "image/jpeg");
+      // Sequential, not Promise.all — keeps memory/CPU pressure from
+      // compressing several full-resolution photos at once bounded on
+      // lower-end devices; a beat of extra latency here is an acceptable
+      // trade for that.
+      for (const asset of result.assets) {
+        const base64 = await compressToBase64(asset.uri);
+        onCaptured(base64, "image/jpeg");
+      }
     } catch {
-      // Same as above — Action screen owns the error state.
+      // Same as above — Action screen owns the error state. Any photos
+      // already compressed before the failure have already fired
+      // onCaptured and remain in the attachment list.
     } finally {
       setBusy(false);
     }
@@ -99,7 +118,9 @@ export function VisionCaptureModal({ visible, onClose, onCaptured }: VisionCaptu
                 <View style={[styles.reticleTick, styles.reticleTickBL]} />
                 <View style={[styles.reticleTick, styles.reticleTickBR]} />
               </View>
-              <Text style={styles.hint}>Frame code, an error, or a diagram</Text>
+              <Text style={styles.hint}>
+                {isFull ? "Attachment limit reached — remove one to add another" : "Frame code, an error, or a diagram"}
+              </Text>
             </View>
 
             <Pressable style={styles.closeButton} onPress={onClose}>
@@ -107,14 +128,18 @@ export function VisionCaptureModal({ visible, onClose, onCaptured }: VisionCaptu
             </Pressable>
 
             <View style={styles.controls}>
-              <Pressable style={styles.galleryButton} onPress={handlePickFromGallery} disabled={busy}>
+              <Pressable
+                style={[styles.galleryButton, isFull && { opacity: 0.4 }]}
+                onPress={handlePickFromGallery}
+                disabled={busy || isFull}
+              >
                 <Text style={styles.galleryButtonText}>🖼️</Text>
               </Pressable>
 
               <Pressable
-                style={[styles.shutterButton, busy && { opacity: 0.6 }]}
+                style={[styles.shutterButton, (busy || isFull) && { opacity: 0.6 }]}
                 onPress={handleCapture}
-                disabled={busy}
+                disabled={busy || isFull}
               >
                 {busy ? <ActivityIndicator color="#000" /> : <View style={styles.shutterInner} />}
               </Pressable>

@@ -13,4 +13,5 @@ export const colors = {
   cyan: "#22d3ee",
   emerald: "#34d399",
   red: "#f87171",
+  amber: "#f59e0b",
 } as const;

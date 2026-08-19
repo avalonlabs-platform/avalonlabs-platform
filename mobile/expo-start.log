@@ -1,0 +1,22 @@
+npm notice run avalonlabs-mobile@1.0.0 npx
+npm notice run expo start -c
+[90menv: load .env.local[39m
+[90menv: export EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_API_BASE_URL[39m
+[90mStarting project at C:\Users\Momcilo Savic\Desktop\avalonlabs-platform\mobile[39m
+[2mStarting Metro Bundler[22m
+[33mwarning[39m: Bundler cache is empty, rebuilding [2m(this may take a minute)[22m
+Waiting on [4mhttp://localhost:8081[24m
+Logs for your project will appear below.
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  1.0% [22m[2m(1/1)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓[49m[39m[47m[37m░░░░░░░░░░░░░░[39m[49m[1m 16.0% [22m[2m( 56/235)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓[49m[39m[47m[37m░░░░░░░░░░░░░[39m[49m[1m 23.7% [22m[2m(215/474)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░░░░[39m[49m[1m 37.2% [22m[2m(422/713)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░[39m[49m[1m 56.2% [22m[2m(592/792)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░[39m[49m[1m 64.7% [22m[2m(708/887)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░[39m[49m[1m 73.5% [22m[2m( 851/1013)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░[39m[49m[1m 81.4% [22m[2m(1084/1218)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 90.5% [22m[2m(1248/1335)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 90.5% [22m[2m(1423/1536)[22m
+[1mAndroid[22m [0m[2mnode_modules\expo-router\[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░[39m[49m[1m 99.4% [22m[2m(1697/1702)[22m
+[32m[1mAndroid[22m Bundled [39m[2m43415ms[22m[0m[2m node_modules\expo-router\entry.js (1702 modules)[22m[0m
