@@ -44,3 +44,8 @@ client_secret_*.json
 *.tsbuildinfo
 next-env.d.ts
 -e "\n.expo/\n*.log" 
+.vercel
+.env*
+-e "\n.expo/\n.expo/*" 
+".expo/" 
+"*.log" 
