@@ -186,3 +186,43 @@ CREATE POLICY "Users can insert own analyses" ON user_analyses
 
 -- No UPDATE/DELETE policy — history rows are append-only from the client;
 -- add one deliberately later if the app grows a "delete this entry" action.
+
+-- ---------------------------------------------------------------------------
+-- API keys — long-lived credentials for clients that can't hold a Supabase
+-- session (Chrome extension, CLI, third-party integrations). Verified in
+-- src/lib/auth-request.ts alongside the existing cookie/Bearer-JWT paths;
+-- once resolved to a user, every existing tier/rate-limit/credit check in
+-- src/lib/agent-access.ts and src/app/api/chat/route.ts applies unchanged —
+-- an API key is just another way to prove who's asking, not a separate
+-- access model.
+--
+-- Only key_hash (SHA-256 hex of the full key) is ever stored — the plaintext
+-- key is shown exactly once, at creation, in the POST /api/account/api-keys
+-- response. key_prefix is the first 12 chars of the plaintext (e.g.
+-- "ak_live_a1b2"), kept only so a user can tell their keys apart in a list
+-- without the full secret ever being persisted or re-displayed.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS api_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  key_hash TEXT NOT NULL,
+  key_prefix TEXT NOT NULL,
+  label TEXT NOT NULL DEFAULT 'Chrome Extension',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS api_keys_user_id_idx ON api_keys(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS api_keys_key_hash_idx ON api_keys(key_hash);
+
+ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+
+-- Users may read their own key metadata (never key_hash's plaintext source —
+-- that never existed server-side past the initial hashing) for a "your keys"
+-- settings list. No INSERT/UPDATE/DELETE policy for anon/authenticated —
+-- minting and revoking both go through the service-role client in
+-- src/app/api/account/api-keys/ so a stolen key can never mint a sibling key
+-- or un-revoke itself, same reasoning as `profiles` above.
+DROP POLICY IF EXISTS "Users can view own api keys" ON api_keys;
+CREATE POLICY "Users can view own api keys" ON api_keys
+  FOR SELECT USING (auth.uid() = user_id);

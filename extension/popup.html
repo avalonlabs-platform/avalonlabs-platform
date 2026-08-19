@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>AvalonLabs Assistant</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <span class="dot" id="status-dot"></span>
+      <h1>AvalonLabs Assistant</h1>
+    </header>
+
+    <section id="setup-view" hidden>
+      <p>
+        Paste an API key from your AvalonLabs account (Settings &rarr; API Keys) to connect this
+        extension.
+      </p>
+      <input
+        id="api-key-input"
+        type="password"
+        placeholder="ak_live_..."
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="save-key-btn" type="button">Connect</button>
+      <p class="error" id="setup-error" hidden></p>
+    </section>
+
+    <section id="chat-view" hidden>
+      <label for="agent-select">Agent</label>
+      <select id="agent-select"></select>
+
+      <textarea id="message-input" placeholder="Ask anything..." rows="4"></textarea>
+      <button id="ask-btn" type="button">Ask</button>
+
+      <div class="error" id="chat-error" hidden></div>
+      <div id="response" class="response"></div>
+
+      <button id="disconnect-btn" class="link-btn" type="button">Disconnect this key</button>
+    </section>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
