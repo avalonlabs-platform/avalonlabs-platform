@@ -8,7 +8,34 @@ export interface Agent {
   systemPrompt: string;
 }
 
-export const agents: Agent[] = [
+/**
+ * Appended to every agent's systemPrompt below (via the `agents` export at
+ * the bottom of this file) so all seven agents share one consistent,
+ * enterprise-grade output contract instead of each prompt re-deriving it.
+ * MarkdownRenderer (src/components/dashboard/markdown-renderer.tsx) is built
+ * against this exact contract: it extracts a leading `[STATUS: LEVEL]`
+ * marker into a colored badge, and gives fenced code blocks (including
+ * ```diff for before/after changes), tables, and `- [ ]` task lists their
+ * own rich rendering. Changing the marker syntax or heading names here must
+ * stay in sync with that renderer.
+ */
+const RESPONSE_FORMAT_DIRECTIVE =
+  "\n\nResponse formatting: for substantive analysis, reviews, audits, or technical/business responses — not " +
+  "simple clarifying questions, acknowledgements, or one-line answers — structure your reply using three Markdown " +
+  "section headings (##), in this order:\n" +
+  "## Executive Summary — open with a status marker on its own line in the exact form `[STATUS: LEVEL]`, where " +
+  "LEVEL is one of PASS, INFO, WARNING, or CRITICAL reflecting overall risk/health, followed by 2-4 sentences " +
+  "stating the bottom line.\n" +
+  "## Key Findings — use `## Architecture Breakdown` as the heading instead when the response is a structural/" +
+  "system analysis — the substantive detail. Use Markdown tables for structured comparisons or multi-attribute " +
+  "data, and fenced code blocks for any code, config, or command output (```language ... ```; use ```diff ... ``` " +
+  "specifically for before/after code changes, with `-` for removed lines and `+` for added lines).\n" +
+  "## Recommendations — a Markdown task-list checklist (`- [ ] action item`) of concrete, prioritized next steps.\n" +
+  "Keep the tone rigorous, concise, and expert-level: state conclusions plainly, avoid hedging and filler, and " +
+  "never pad findings just to fill out the structure. For short conversational replies or quick clarifying " +
+  "questions, respond naturally instead of forcing this structure.";
+
+const baseAgents: Agent[] = [
   {
     id: "assistant",
     name: "General Assistant",
@@ -102,5 +129,10 @@ export const agents: Agent[] = [
       "Don't comment on code style or performance — stay strictly focused on security.",
   },
 ];
+
+export const agents: Agent[] = baseAgents.map((agent) => ({
+  ...agent,
+  systemPrompt: `${agent.systemPrompt}${RESPONSE_FORMAT_DIRECTIVE}`,
+}));
 
 export const defaultAgentId = agents[0].id;

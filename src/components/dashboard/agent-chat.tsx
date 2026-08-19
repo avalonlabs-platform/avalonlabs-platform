@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Agent } from "@/constants/agents";
 import { AgentAccessBadge } from "@/components/dashboard/agent-access-badge";
+import { MarkdownRenderer } from "@/components/dashboard/markdown-renderer";
+import { MessageExportMenu } from "@/components/dashboard/message-export-menu";
 
 type ChatMessage = { id: number; role: "user" | "agent"; content: string; typing?: boolean };
 type ApiTurn = { role: "user" | "assistant"; content: string };
@@ -13,6 +15,26 @@ let idCounter = 0;
 function nextId() {
   idCounter += 1;
   return idCounter;
+}
+
+/** Isolated so each agent bubble owns its own DOM ref for the export menu
+ *  (copy/`.md`/PDF) without the parent needing a ref-per-message map. Export
+ *  controls are withheld while streaming and for error bubbles — neither is
+ *  a finished response worth exporting. */
+function AgentBubble({ message, agentName }: { message: ChatMessage; agentName: string }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const isError = message.content.startsWith("⚠️");
+  const showExport = !message.typing && !isError && message.content.trim().length > 0;
+
+  return (
+    <div className="max-w-[85%]">
+      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5">
+        <MarkdownRenderer ref={contentRef} content={message.content} />
+        {message.typing && <span className="animate-caret ml-0.5 inline-block w-1.5 bg-white/70">&nbsp;</span>}
+      </div>
+      {showExport && <MessageExportMenu agentName={agentName} content={message.content} containerRef={contentRef} />}
+    </div>
+  );
 }
 
 /** Remounted (via `key={agent.id}`) whenever the selected agent changes, so history resets per-agent. */
@@ -114,16 +136,13 @@ export function AgentChat({ agent }: { agent: Agent }) {
               transition={{ duration: 0.25 }}
               className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              <div
-                className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-                  m.role === "user"
-                    ? "bg-indigo-500/90 text-white"
-                    : "border border-white/10 bg-white/5 text-white/90"
-                }`}
-              >
-                {m.content}
-                {m.typing && <span className="animate-caret ml-0.5 inline-block w-1.5 bg-white/70">&nbsp;</span>}
-              </div>
+              {m.role === "user" ? (
+                <div className="max-w-[75%] rounded-2xl bg-indigo-500/90 px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-white">
+                  {m.content}
+                </div>
+              ) : (
+                <AgentBubble message={m} agentName={agent.name} />
+              )}
             </motion.div>
           ))}
         </AnimatePresence>
