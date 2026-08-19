@@ -4,6 +4,14 @@ import { agents } from "@/constants/agents";
 import { pricingTiers, type PricingTier } from "@/constants/pricing-tiers";
 import { getAgentAccess } from "@/lib/agent-access";
 import { getRequestUser } from "@/lib/auth-request";
+import {
+  ALLOWED_IMAGE_MEDIA_TYPES as ATTACHMENT_ALLOWED_IMAGE_MEDIA_TYPES,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_COMBINED_ATTACHMENT_BYTES,
+  categorizeAttachment,
+  maxBytesForCategory,
+} from "@/lib/attachments/constants";
+import type { AttachmentPayload } from "@/lib/attachments/types";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_TURNS = 20;
@@ -54,12 +62,97 @@ interface ChatRequestBody {
   agentId?: string;
   message?: string;
   history?: ChatTurn[];
+  /** Legacy single-image field — the mobile app's Vision Analyzer camera
+   *  flow still sends this. Left untouched; the multi-file web dashboard
+   *  attachment picker uses `attachments` below instead, and both can
+   *  contribute content blocks to the same request if a client somehow sent
+   *  both (see userContent construction). */
   image?: ChatImage;
+  /** Web dashboard attachment picker / drag-drop / paste — zero or more
+   *  images, PDFs, or text files. See src/lib/attachments/. */
+  attachments?: AttachmentPayload[];
 }
 
 const ALLOWED_IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 // Claude's per-image limit is 5MB of raw bytes; base64 runs ~33% larger.
 const MAX_IMAGE_BASE64_LENGTH = 7_000_000;
+
+/**
+ * Re-validates each attachment against the same allowlist/size rules the
+ * client already applied (src/lib/attachments/constants.ts) — never trusts
+ * the client's own `category` label — and turns it into the Anthropic
+ * content block shape for that type. Returns a user-facing `error` string
+ * (never throws) so the route can respond with a clean 400 on the first bad
+ * attachment rather than a generic 500.
+ */
+function resolveAttachmentBlocks(
+  attachments: AttachmentPayload[]
+): { blocks: Array<Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam>; error: string | null } {
+  if (attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+    return { blocks: [], error: `Too many attachments — up to ${MAX_ATTACHMENTS_PER_MESSAGE} files per message.` };
+  }
+
+  const blocks: Array<Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam> = [];
+  let combinedBytes = 0;
+
+  for (const att of attachments) {
+    if (
+      !att ||
+      typeof att.name !== "string" ||
+      typeof att.mediaType !== "string" ||
+      typeof att.data !== "string" ||
+      !att.data
+    ) {
+      return { blocks: [], error: "Malformed attachment." };
+    }
+
+    const category = categorizeAttachment(att.name, att.mediaType);
+    if (!category) {
+      return { blocks: [], error: `"${att.name}" isn't a supported attachment type.` };
+    }
+
+    // Text attachments are sent as literal characters (Anthropic's
+    // PlainTextSource takes raw text, not base64), so their byte size is
+    // just the string length; base64 inflates by ~4/3 over the original
+    // file, so approximate the real file size back out for the size check.
+    const approxBytes = category === "text" ? att.data.length : Math.ceil((att.data.length * 3) / 4);
+    if (approxBytes > maxBytesForCategory(category)) {
+      return { blocks: [], error: `"${att.name}" is too large for a ${category} attachment.` };
+    }
+    combinedBytes += approxBytes;
+    if (combinedBytes > MAX_COMBINED_ATTACHMENT_BYTES) {
+      return { blocks: [], error: "Attachments are too large combined — remove one and try again." };
+    }
+
+    if (category === "image") {
+      if (!(ATTACHMENT_ALLOWED_IMAGE_MEDIA_TYPES as readonly string[]).includes(att.mediaType)) {
+        return { blocks: [], error: `"${att.name}" has an unsupported image type.` };
+      }
+      blocks.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: att.mediaType as Anthropic.Base64ImageSource["media_type"],
+          data: att.data,
+        },
+      });
+    } else if (category === "pdf") {
+      blocks.push({
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: att.data },
+        title: att.name,
+      });
+    } else {
+      blocks.push({
+        type: "document",
+        source: { type: "text", media_type: "text/plain", data: att.data },
+        title: att.name,
+      });
+    }
+  }
+
+  return { blocks, error: null };
+}
 
 export async function POST(request: Request) {
   // Dashboard/mobile chat only — reject unauthenticated requests before any
@@ -72,7 +165,8 @@ export async function POST(request: Request) {
   }
 
   const body: ChatRequestBody = await request.json();
-  const { agentId, message, history, image } = body;
+  const { agentId, message, history, image, attachments: rawAttachments } = body;
+  const attachments = Array.isArray(rawAttachments) ? rawAttachments : [];
 
   // The system prompt is resolved server-side from a trusted lookup — the
   // client only ever supplies an agent id, never prompt text.
@@ -146,7 +240,17 @@ export async function POST(request: Request) {
     }
   }
 
-  if (!hasImage && (!message || typeof message !== "string" || !message.trim())) {
+  let attachmentBlocks: Array<Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam> = [];
+  if (attachments.length > 0) {
+    const resolved = resolveAttachmentBlocks(attachments);
+    if (resolved.error) {
+      return Response.json({ error: resolved.error }, { status: 400 });
+    }
+    attachmentBlocks = resolved.blocks;
+  }
+  const hasAttachments = attachmentBlocks.length > 0;
+
+  if (!hasImage && !hasAttachments && (!message || typeof message !== "string" || !message.trim())) {
     return Response.json({ error: "Missing message" }, { status: 400 });
   }
   if (message && message.length > MAX_MESSAGE_LENGTH) {
@@ -161,20 +265,27 @@ export async function POST(request: Request) {
     .slice(-MAX_HISTORY_TURNS)
     .map((turn) => ({ role: turn.role, content: turn.content.slice(0, MAX_MESSAGE_LENGTH) }));
 
-  const userText = message?.trim() || "Analyze this image.";
-  const userContent: Anthropic.MessageParam["content"] = hasImage
-    ? [
-        {
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: image!.mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
-            data: image!.data!,
-          },
-        },
-        { type: "text", text: userText },
-      ]
-    : userText;
+  const userText =
+    message?.trim() || (hasImage ? "Analyze this image." : hasAttachments ? "Analyze the attached file(s)." : "");
+  const userContent: Anthropic.MessageParam["content"] =
+    hasImage || hasAttachments
+      ? [
+          ...(hasImage
+            ? [
+                {
+                  type: "image" as const,
+                  source: {
+                    type: "base64" as const,
+                    media_type: image!.mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+                    data: image!.data!,
+                  },
+                },
+              ]
+            : []),
+          ...attachmentBlocks,
+          { type: "text" as const, text: userText },
+        ]
+      : userText;
 
   const messages: Anthropic.MessageParam[] = [
     ...trimmedHistory,
