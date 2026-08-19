@@ -43,3 +43,4 @@ client_secret_*.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+-e "\n.expo/\n*.log" 
