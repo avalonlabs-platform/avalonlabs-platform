@@ -1,11 +1,23 @@
+import type { GeminiModelHint, LlmProvider } from "@/lib/llm-router";
+
 export interface Agent {
   id: string;
   name: string;
   emoji: string;
   description: string;
   greeting: string;
-  /** Sent to Claude as the system prompt — looked up server-side by agent id, never trusted from the client. */
+  /** Sent as the system prompt to whichever provider handles this agent —
+   *  looked up server-side by agent id, never trusted from the client. */
   systemPrompt: string;
+  /** Default LLM provider for this agent's workload (see
+   *  src/lib/llm-router.ts's resolveProvider) — Anthropic for precision
+   *  code/security/reasoning tasks, Gemini for large-context document work
+   *  and high-throughput vision/OCR. Overridable per-request via the
+   *  `provider` field, and platform-wide via DEFAULT_LLM_PROVIDER. */
+  preferredProvider: LlmProvider;
+  /** Only consulted when the resolved provider is "gemini" — picks the
+   *  Gemini model tier for this agent's workload. */
+  geminiModelHint?: GeminiModelHint;
 }
 
 /**
@@ -47,6 +59,7 @@ const baseAgents: Agent[] = [
       "Help with writing, research, planning, and everyday questions. Keep answers direct and well-organized. " +
       "If a request is clearly better suited to a specialist agent (code explanations, API specs, business plans), " +
       "you can still help, but you may mention the more specialized agent is available in the sidebar.",
+    preferredProvider: "anthropic",
   },
   {
     id: "code-explainer",
@@ -59,6 +72,8 @@ const baseAgents: Agent[] = [
       "Given a snippet, break down what it does step by step: control flow, key variables, edge cases, and anything " +
       "unusual or worth flagging. Assume the reader can code but may not know this specific language or codebase. " +
       "Be concrete and reference the actual code given, not generic advice.",
+    // Precision code work — Anthropic per the Dual-AI Engine capability split.
+    preferredProvider: "anthropic",
   },
   {
     id: "api-analyzer",
@@ -71,6 +86,10 @@ const baseAgents: Agent[] = [
       "Given an endpoint, method, or spec fragment, summarize its structure: what it does, expected inputs " +
       "(path/query params, request body), auth requirements, and the shape of the response. Flag anything " +
       "that looks like a write vs. read operation, and note pagination or rate-limit behavior if evident.",
+    // Specs/OpenAPI docs can be large — Gemini's large-context tier per the
+    // Dual-AI Engine capability split.
+    preferredProvider: "gemini",
+    geminiModelHint: "large-context",
   },
   {
     id: "business-advisor",
@@ -83,6 +102,7 @@ const baseAgents: Agent[] = [
       "Identify genuine strengths, then focus most of your response on the two or three biggest risks or gaps " +
       "(e.g. acquisition channel, unit economics, competitive moat, retention). Be direct rather than generically " +
       "encouraging — the value is in catching real problems early.",
+    preferredProvider: "anthropic",
   },
   {
     id: "sql-optimizer",
@@ -97,6 +117,8 @@ const baseAgents: Agent[] = [
       "composite column ordering). Explain execution plans in plain language when one is shared — call out full " +
       "table scans, missing indexes, and expensive joins or sorts. Stay focused on the query and schema given; " +
       "don't speculate about application code or business logic.",
+    // Precision code/query work — Anthropic per the Dual-AI Engine capability split.
+    preferredProvider: "anthropic",
   },
   {
     id: "vision-analyzer",
@@ -122,6 +144,10 @@ const baseAgents: Agent[] = [
       "shows before analyzing it. Use fenced code blocks (```language ... ```) for any code or commands so they " +
       "render distinctly from prose. If an attachment is unreadable or unrelated to code, systems, or product " +
       "design, say so plainly instead of guessing.",
+    // High-throughput OCR/vision — Gemini's fast tier per the Dual-AI
+    // Engine capability split.
+    preferredProvider: "gemini",
+    geminiModelHint: "fast",
   },
   {
     id: "security-auditor",
@@ -136,6 +162,8 @@ const baseAgents: Agent[] = [
       "command injection and authorization leaks — missing or incorrect checks on who can access or modify what. " +
       "For each finding, state the concrete exploit scenario, not just the category name, and rate its severity. " +
       "Don't comment on code style or performance — stay strictly focused on security.",
+    // Contract/architectural audits — Anthropic per the Dual-AI Engine capability split.
+    preferredProvider: "anthropic",
   },
 ];
 
