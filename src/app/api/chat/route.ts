@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { agents } from "@/constants/agents";
 import { pricingTiers, type PricingTier } from "@/constants/pricing-tiers";
@@ -12,6 +11,15 @@ import {
   maxBytesForCategory,
 } from "@/lib/attachments/constants";
 import type { AttachmentPayload } from "@/lib/attachments/types";
+import {
+  LlmGatewayError,
+  exceedsGeminiInlineLimit,
+  isProviderConfigured,
+  resolveProvider,
+  streamChatCompletion,
+  type NeutralPart,
+  type NeutralTurn,
+} from "@/lib/llm-router";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_TURNS = 20;
@@ -62,15 +70,18 @@ interface ChatRequestBody {
   agentId?: string;
   message?: string;
   history?: ChatTurn[];
-  /** Legacy single-image field — the mobile app's Vision Analyzer camera
-   *  flow still sends this. Left untouched; the multi-file web dashboard
-   *  attachment picker uses `attachments` below instead, and both can
-   *  contribute content blocks to the same request if a client somehow sent
-   *  both (see userContent construction). */
+  /** Legacy single-image field — the mobile app's earlier Vision Analyzer
+   *  camera flow sent this; kept working for any other caller even though
+   *  every first-party client now sends `attachments` below instead. */
   image?: ChatImage;
-  /** Web dashboard attachment picker / drag-drop / paste — zero or more
-   *  images, PDFs, or text files. See src/lib/attachments/. */
+  /** Web dashboard attachment picker / drag-drop / paste, and the mobile
+   *  app's multi-photo attachment bar — zero or more images, PDFs, or text
+   *  files. See src/lib/attachments/. */
   attachments?: AttachmentPayload[];
+  /** Explicit per-request override of which LLM provider serves this
+   *  request — see src/lib/llm-router.ts's resolveProvider for the full
+   *  precedence order. Also readable via an `X-LLM-Provider` header. */
+  provider?: string;
 }
 
 const ALLOWED_IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -80,19 +91,20 @@ const MAX_IMAGE_BASE64_LENGTH = 7_000_000;
 /**
  * Re-validates each attachment against the same allowlist/size rules the
  * client already applied (src/lib/attachments/constants.ts) — never trusts
- * the client's own `category` label — and turns it into the Anthropic
- * content block shape for that type. Returns a user-facing `error` string
- * (never throws) so the route can respond with a clean 400 on the first bad
+ * the client's own `category` label — and turns it into the provider-
+ * agnostic NeutralPart shape (src/lib/llm-router.ts) so either Anthropic or
+ * Gemini can consume it. Returns a user-facing `error` string (never
+ * throws) so the route can respond with a clean 400 on the first bad
  * attachment rather than a generic 500.
  */
-function resolveAttachmentBlocks(
+function resolveAttachmentParts(
   attachments: AttachmentPayload[]
-): { blocks: Array<Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam>; error: string | null } {
+): { parts: NeutralPart[]; error: string | null } {
   if (attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
-    return { blocks: [], error: `Too many attachments — up to ${MAX_ATTACHMENTS_PER_MESSAGE} files per message.` };
+    return { parts: [], error: `Too many attachments — up to ${MAX_ATTACHMENTS_PER_MESSAGE} files per message.` };
   }
 
-  const blocks: Array<Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam> = [];
+  const parts: NeutralPart[] = [];
   let combinedBytes = 0;
 
   for (const att of attachments) {
@@ -103,55 +115,40 @@ function resolveAttachmentBlocks(
       typeof att.data !== "string" ||
       !att.data
     ) {
-      return { blocks: [], error: "Malformed attachment." };
+      return { parts: [], error: "Malformed attachment." };
     }
 
     const category = categorizeAttachment(att.name, att.mediaType);
     if (!category) {
-      return { blocks: [], error: `"${att.name}" isn't a supported attachment type.` };
+      return { parts: [], error: `"${att.name}" isn't a supported attachment type.` };
     }
 
-    // Text attachments are sent as literal characters (Anthropic's
-    // PlainTextSource takes raw text, not base64), so their byte size is
-    // just the string length; base64 inflates by ~4/3 over the original
-    // file, so approximate the real file size back out for the size check.
+    // Text attachments are sent as literal characters (not base64), so
+    // their byte size is just the string length; base64 inflates by ~4/3
+    // over the original file, so approximate the real file size back out
+    // for the size check.
     const approxBytes = category === "text" ? att.data.length : Math.ceil((att.data.length * 3) / 4);
     if (approxBytes > maxBytesForCategory(category)) {
-      return { blocks: [], error: `"${att.name}" is too large for a ${category} attachment.` };
+      return { parts: [], error: `"${att.name}" is too large for a ${category} attachment.` };
     }
     combinedBytes += approxBytes;
     if (combinedBytes > MAX_COMBINED_ATTACHMENT_BYTES) {
-      return { blocks: [], error: "Attachments are too large combined — remove one and try again." };
+      return { parts: [], error: "Attachments are too large combined — remove one and try again." };
     }
 
     if (category === "image") {
       if (!(ATTACHMENT_ALLOWED_IMAGE_MEDIA_TYPES as readonly string[]).includes(att.mediaType)) {
-        return { blocks: [], error: `"${att.name}" has an unsupported image type.` };
+        return { parts: [], error: `"${att.name}" has an unsupported image type.` };
       }
-      blocks.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: att.mediaType as Anthropic.Base64ImageSource["media_type"],
-          data: att.data,
-        },
-      });
+      parts.push({ type: "image", mediaType: att.mediaType, data: att.data });
     } else if (category === "pdf") {
-      blocks.push({
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: att.data },
-        title: att.name,
-      });
+      parts.push({ type: "document", mediaType: "application/pdf", data: att.data, encoding: "base64", title: att.name });
     } else {
-      blocks.push({
-        type: "document",
-        source: { type: "text", media_type: "text/plain", data: att.data },
-        title: att.name,
-      });
+      parts.push({ type: "document", mediaType: "text/plain", data: att.data, encoding: "utf8", title: att.name });
     }
   }
 
-  return { blocks, error: null };
+  return { parts, error: null };
 }
 
 export async function POST(request: Request) {
@@ -165,7 +162,7 @@ export async function POST(request: Request) {
   }
 
   const body: ChatRequestBody = await request.json();
-  const { agentId, message, history, image, attachments: rawAttachments } = body;
+  const { agentId, message, history, image, attachments: rawAttachments, provider: requestedProvider } = body;
   const attachments = Array.isArray(rawAttachments) ? rawAttachments : [];
 
   // The system prompt is resolved server-side from a trusted lookup — the
@@ -224,8 +221,8 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("Chat: ANTHROPIC_API_KEY is not set.");
+  if (!isProviderConfigured("anthropic") && !isProviderConfigured("gemini")) {
+    console.error("Chat: neither ANTHROPIC_API_KEY nor GEMINI_API_KEY is set.");
     return Response.json({ error: "Chat is not configured" }, { status: 500 });
   }
 
@@ -240,15 +237,15 @@ export async function POST(request: Request) {
     }
   }
 
-  let attachmentBlocks: Array<Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam> = [];
+  let attachmentParts: NeutralPart[] = [];
   if (attachments.length > 0) {
-    const resolved = resolveAttachmentBlocks(attachments);
+    const resolved = resolveAttachmentParts(attachments);
     if (resolved.error) {
       return Response.json({ error: resolved.error }, { status: 400 });
     }
-    attachmentBlocks = resolved.blocks;
+    attachmentParts = resolved.parts;
   }
-  const hasAttachments = attachmentBlocks.length > 0;
+  const hasAttachments = attachmentParts.length > 0;
 
   if (!hasImage && !hasAttachments && (!message || typeof message !== "string" || !message.trim())) {
     return Response.json({ error: "Missing message" }, { status: 400 });
@@ -257,7 +254,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Message too long" }, { status: 400 });
   }
 
-  const trimmedHistory = (Array.isArray(history) ? history : [])
+  const trimmedHistory: NeutralTurn[] = (Array.isArray(history) ? history : [])
     .filter(
       (turn): turn is ChatTurn =>
         (turn?.role === "user" || turn?.role === "assistant") && typeof turn.content === "string"
@@ -267,48 +264,62 @@ export async function POST(request: Request) {
 
   const userText =
     message?.trim() || (hasImage ? "Analyze this image." : hasAttachments ? "Analyze the attached file(s)." : "");
-  const userContent: Anthropic.MessageParam["content"] =
-    hasImage || hasAttachments
-      ? [
-          ...(hasImage
-            ? [
-                {
-                  type: "image" as const,
-                  source: {
-                    type: "base64" as const,
-                    media_type: image!.mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
-                    data: image!.data!,
-                  },
-                },
-              ]
-            : []),
-          ...attachmentBlocks,
-          { type: "text" as const, text: userText },
-        ]
-      : userText;
 
-  const messages: Anthropic.MessageParam[] = [
-    ...trimmedHistory,
-    { role: "user", content: userContent },
+  const userParts: NeutralPart[] = [
+    ...(hasImage ? [{ type: "image" as const, mediaType: image!.mediaType!, data: image!.data! }] : []),
+    ...attachmentParts,
+    { type: "text", text: userText },
   ];
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  let resolvedProvider = resolveProvider({
+    requestedProvider: requestedProvider ?? request.headers.get("X-LLM-Provider"),
+    agentPreferredProvider: agent.preferredProvider,
+  });
+
+  // Gemini's inline (non-Files-API) requests cap out at ~20MB total —
+  // tighter than the attachment ceilings in src/lib/attachments/constants.ts,
+  // which were sized for Anthropic's larger 32MB limit. A request that's
+  // valid but too big for Gemini falls back to Anthropic here rather than
+  // surfacing a confusing rejection from Gemini's API.
+  if (resolvedProvider === "gemini" && exceedsGeminiInlineLimit(userParts)) {
+    console.warn("Chat: attachments too large for Gemini's inline limit — routing to Anthropic instead.");
+    resolvedProvider = "anthropic";
+  }
+
   const encoder = new TextEncoder();
+  const completion = streamChatCompletion({
+    provider: resolvedProvider,
+    geminiModelHint: agent.geminiModelHint,
+    systemPrompt: agent.systemPrompt,
+    history: trimmedHistory,
+    userParts,
+  });
+
+  // Prime the stream (get/await the first chunk) before committing to a
+  // Response at all — the router's own provider fallback (see
+  // streamChatCompletion) has already run by the time this either resolves
+  // or throws, so a total failure (both providers down/misconfigured) can
+  // still return a clean JSON error with the right status code instead of
+  // a 200 response carrying an inline "something went wrong" text notice.
+  let firstChunk: string | null;
+  try {
+    const { value, done } = await completion.next();
+    firstChunk = done ? null : value;
+  } catch (error) {
+    if (error instanceof LlmGatewayError) {
+      console.error("Chat: LLM gateway failed before producing output —", error.message);
+      return Response.json({ error: "Chat is temporarily unavailable — please try again shortly." }, { status: error.status });
+    }
+    console.error("Chat: unexpected error starting the LLM stream —", error);
+    return Response.json({ error: "Chat is temporarily unavailable — please try again shortly." }, { status: 500 });
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const claudeStream = anthropic.messages.stream({
-          model: "claude-sonnet-5",
-          max_tokens: 4096,
-          system: agent.systemPrompt,
-          messages,
-        });
-
-        for await (const event of claudeStream) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            controller.enqueue(encoder.encode(event.delta.text));
-          }
+        if (firstChunk) controller.enqueue(encoder.encode(firstChunk));
+        for await (const chunk of completion) {
+          controller.enqueue(encoder.encode(chunk));
         }
 
         // Only spend a credit once the response actually completed —
