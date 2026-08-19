@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { SubscriptionStatus } from "@/components/dashboard/subscription-status";
+import { ApiKeysManager } from "@/components/dashboard/api-keys-manager";
 import { agents, defaultAgentId } from "@/constants/agents";
 
 export default async function DashboardPage({
@@ -20,6 +21,9 @@ export default async function DashboardPage({
         <Suspense fallback={<div className="h-24 animate-pulse rounded-2xl bg-white/[0.03]" />}>
           <SubscriptionStatus />
         </Suspense>
+        <div className="mt-5">
+          <ApiKeysManager />
+        </div>
       </aside>
     </div>
   );
