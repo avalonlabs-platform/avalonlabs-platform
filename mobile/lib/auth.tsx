@@ -54,6 +54,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // (observed on some Android/Custom-Tabs combinations). Harmless no-op
     // for any URL that isn't carrying auth tokens.
     const linkingSubscription = Linking.addEventListener("url", ({ url }) => {
+      console.log("[oauth] Linking fallback received url:", url);
+      applyTokensFromUrl(url);
+    });
+
+    // Cold-start path: on Android, backgrounding the app to open a Custom
+    // Tab for the OAuth provider can get the app's process killed under
+    // memory pressure while the browser stays open. When that happens, the
+    // "url" listener above never fires — there's no live JS context left to
+    // fire it into — and openAuthSessionAsync's original await is gone too.
+    // The OS instead relaunches the app fresh via the avalonlabs:// redirect,
+    // which only getInitialURL() can see, so this has to be checked on every
+    // mount independently of the listener.
+    Linking.getInitialURL().then((url) => {
+      if (!url) return;
+      console.log("[oauth] getInitialURL cold-start redirect:", url);
       applyTokensFromUrl(url);
     });
 
@@ -81,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // recognized schemes, so expo-linking silently falls back to "exp"), and
     // becomes the real deep-link scheme in a dev-client/standalone build.
     const redirectTo = makeRedirectUri({ scheme: "avalonlabs", path: OAUTH_REDIRECT_PATH });
+    console.log("[oauth] redirectTo:", redirectTo);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
@@ -88,8 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (error) return { error: error.message };
     if (!data.url) return { error: "No sign-in URL returned." };
+    console.log("[oauth] authorize url:", data.url);
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    console.log("[oauth] result:", JSON.stringify(result));
     if (result.type === "cancel" || result.type === "dismiss") {
       return { error: null };
     }
@@ -98,7 +116,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const applied = await applyTokensFromUrl(result.url);
-    if (!applied) return { error: "Signed in, but no tokens came back in the redirect." };
+    if (!applied) {
+      console.log("[oauth] no tokens in redirect url:", result.url);
+      return { error: "Signed in, but no tokens came back in the redirect." };
+    }
     return applied;
   }
 
