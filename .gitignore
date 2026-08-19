@@ -49,3 +49,5 @@ next-env.d.ts
 -e "\n.expo/\n.expo/*" 
 ".expo/" 
 "*.log" 
+".expo/" 
+"*.log" 
