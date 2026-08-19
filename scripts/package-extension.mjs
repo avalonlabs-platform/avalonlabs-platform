@@ -9,7 +9,22 @@ const extensionDir = join(projectRoot, 'extension');
 const distDir = join(projectRoot, 'dist');
 
 const REQUIRED_MANIFEST_FIELDS = ['manifest_version', 'name', 'version', 'description'];
-const REQUIRED_FILES = ['manifest.json', 'popup.html', 'popup.js', 'popup.css', 'background.js', 'config.js'];
+// Sprint 2 replaced the popup (popup.html/js/css) with a persistent side
+// panel (sidepanel.html/js/css) plus the floating in-page quick-action
+// pill (content.js/css) and its dependency-free markdown renderer
+// (markdown.js) — see extension/manifest.json's "side_panel" and
+// "content_scripts" entries.
+const REQUIRED_FILES = [
+  'manifest.json',
+  'sidepanel.html',
+  'sidepanel.js',
+  'sidepanel.css',
+  'content.js',
+  'content.css',
+  'markdown.js',
+  'background.js',
+  'config.js',
+];
 const REQUIRED_ICONS = ['icons/icon16.png', 'icons/icon48.png', 'icons/icon128.png'];
 const MAX_DESCRIPTION_LENGTH = 132; // Chrome Web Store's hard limit.
 
@@ -90,7 +105,7 @@ async function main() {
 
   console.log('Checking required files...');
   validateRequiredFiles();
-  console.log('  [OK] All required files present (popup, background, config, icons).');
+  console.log('  [OK] All required files present (side panel, content script, background, config, icons).');
 
   console.log('Packaging...');
   const outputPath = await zipExtension(manifest);

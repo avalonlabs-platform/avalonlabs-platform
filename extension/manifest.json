@@ -1,15 +1,18 @@
 {
   "manifest_version": 3,
   "name": "AvalonLabs Assistant",
-  "version": "1.0.0",
-  "description": "Chat with your AvalonLabs AI agents from any tab, or right-click selected text to ask about it.",
+  "version": "1.1.0",
+  "description": "Chat with AvalonLabs AI agents from a persistent side panel, or select text on any page for instant Explain/Audit/Review actions.",
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_title": "Open AvalonLabs Assistant"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "icons": {
     "16": "icons/icon16.png",
@@ -20,6 +23,22 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "contextMenus", "notifications"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+A",
+        "mac": "Command+Shift+A"
+      },
+      "description": "Open the AvalonLabs side panel"
+    }
+  },
+  "permissions": ["sidePanel", "activeTab", "scripting", "storage", "contextMenus", "notifications"],
   "host_permissions": ["https://avalonlabs-platform.vercel.app/*"]
 }
