@@ -1,0 +1,87 @@
+/*
+ * Styles for the floating quick-action pill injected by content.js.
+ * Loaded into a Shadow DOM root (see content.js) via
+ * fetch(chrome.runtime.getURL("content.css")), so none of this can leak
+ * into — or be broken by — the host page's own CSS, and none of the host
+ * page's styles can leak in here either.
+ */
+
+:host {
+  all: initial;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+
+.av-pill {
+  position: fixed;
+  z-index: 2147483647;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  animation: av-pill-in 120ms ease-out;
+}
+
+@keyframes av-pill-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.av-pill-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #c9d1d9;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.av-pill-btn:hover,
+.av-pill-btn:focus-visible {
+  background: #6366f1;
+  color: #ffffff;
+  outline: none;
+}
+
+.av-pill-divider {
+  width: 1px;
+  background: #30363d;
+  margin: 2px 0;
+}
+
+.av-toast {
+  position: fixed;
+  z-index: 2147483647;
+  max-width: 280px;
+  padding: 10px 14px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-left: 3px solid #6366f1;
+  border-radius: 8px;
+  color: #c9d1d9;
+  font-size: 12.5px;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  animation: av-pill-in 120ms ease-out;
+}
+
+.av-toast.av-toast-error {
+  border-left-color: #f85149;
+}

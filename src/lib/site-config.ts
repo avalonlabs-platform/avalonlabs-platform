@@ -1,13 +1,14 @@
 /**
  * Central site configuration.
  *
- * Placeholders wrapped in [brackets] are legal/business details that must be
- * confirmed before go-live (registered entity name, jurisdiction, address).
- * Everything here is consumed by the legal pages, footer, and contact form
- * so it only needs to be corrected in one place.
+ * Legal/business details (registered entity name, jurisdiction, address,
+ * contact emails) live here as the single source of truth — the legal
+ * pages, footer, and contact form all read from this file, so any future
+ * change (e.g. a new registered entity or contact address) only needs to
+ * be made in one place.
  */
 
-const FALLBACK_SITE_URL = "https://avalonlabs-platform.vercel.app";
+const FALLBACK_SITE_URL = "https://www.avalonlabs-platform.com";
 
 /**
  * NEXT_PUBLIC_SITE_URL is set per-environment (Vercel dashboard for
@@ -53,12 +54,11 @@ export const siteConfig = {
   tagline: "AI Agents & SaaS Microservices for people and businesses who need answers now.",
   url: normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL),
 
-  // Support & contact — TEMPORARY: using a real, controlled inbox since no
-  // domain is owned yet. Replace with support@/legal@/privacy@<real domain>
-  // once a domain is purchased, before Paddle audit submission.
-  supportEmail: "momcilosavic1234567@gmail.com",
-  legalEmail: "momcilosavic1234567@gmail.com",
-  privacyEmail: "momcilosavic1234567@gmail.com",
+  // Support & contact — routed through Google Workspace on the live
+  // business domain (avalonlabs-platform.com), not a personal inbox.
+  supportEmail: "admin@avalonlabs-platform.com",
+  legalEmail: "admin@avalonlabs-platform.com",
+  privacyEmail: "admin@avalonlabs-platform.com",
 
   legalEntityName: "AvalonLabs, Inc.",
   legalEntityAddress: "Alekse Šantića 22, 81000 Podgorica, Montenegro",

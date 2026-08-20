@@ -13,6 +13,24 @@ several of these steps touch live billing and can't be cleanly undone.
 needs to be re-pointed at wherever the repo ends up), Supabase and Paddle before any credential
 rotation (rotate once, at the new home, not twice), verification last.
 
+## Status as of 2026-08-20
+
+Quick read before diving into the phase-by-phase detail below — updated from what's been reported
+and independently verified (git remote, live domain fetch) this session, not assumed:
+
+- **Done, verified**: Phase 1 (GitHub — `origin` confirmed pointed at
+  `github.com/avalonlabs-platform/avalonlabs-platform`), Phase 8 (Domain — `www.avalonlabs-platform.com`
+  confirmed live and serving correctly via a direct fetch).
+- **Done, reported but not independently verified** (no dashboard access from here): Phase 3
+  (Supabase — org transfer + admin role reported; project URL unchanged-after-transfer still
+  worth a manual double-check per that phase's own caveat), Phase 4 (Paddle — admin role, domain
+  review, statement descriptor, and webhook URL all reported done; **legal entity name / product
+  website fields are still locked pending Paddle support's response** — that's the one open item).
+- **Not yet started / not mentioned**: Phase 2 (Vercel — domain is live, but that's separate from
+  whether the *project itself* is owned by an org Team vs. still a personal account), Phase 5
+  (Expo/EAS), Phase 6 (Anthropic Console), Phase 7 (credential rotation — explicitly deferred,
+  nothing blocking it whenever you're ready).
+
 ## Phase 0 — Before touching anything
 
 - [ ] Confirm the business entity itself is registered and ready to be the account holder (this
@@ -26,7 +44,7 @@ rotation (rotate once, at the new home, not twice), verification last.
 - [ ] Inventory every credential in `scripts/.env.ops` and `mobile/.env.local` / `.env.local` — you'll
       be rotating all of them in Phase 7 regardless of how the transfers go.
 
-## Phase 1 — GitHub
+## Phase 1 — GitHub ✅ done (verified 2026-08-20 — local `.git/config` `origin` confirmed pointed at `github.com/avalonlabs-platform/avalonlabs-platform.git`)
 
 - [ ] Create the GitHub Organization (or confirm it already exists).
 - [ ] Repo → **Settings → General → Danger Zone → Transfer ownership** → transfer to the new org.
@@ -36,9 +54,11 @@ rotation (rotate once, at the new home, not twice), verification last.
 - [ ] If any GitHub Actions secrets exist, re-add them under the org repo (repo secrets don't survive
       a transfer as reliably as the repo content itself).
 
-## Phase 2 — Vercel
+## Phase 2 — Vercel ⬜ status unclear — next action: confirm in Vercel dashboard whether the project is under an org Team or still a personal account
 
-Vercel's project transfer is a documented, self-service, zero-downtime feature
+The custom domain being live does **not** by itself mean the project has been transferred to an
+org Team — domain setup and project ownership are separate settings. Vercel's project transfer is
+a documented, self-service, zero-downtime feature
 ([Vercel docs](https://vercel.com/docs/projects/transferring-projects), confirmed current as of this
 writing):
 
@@ -58,7 +78,12 @@ writing):
       `scripts/.env.ops` is scoped to the *old* account/team and won't see the transferred project;
       you'll need a new token from the destination team first (see Phase 7).
 
-## Phase 3 — Supabase
+## Phase 3 — Supabase 🟡 reported done — one item worth confirming: project URL unchanged post-transfer
+
+Reported 2026-08-20: project transferred to the `AvalonLabs` org, `admin@avalonlabs-platform.com`
+set as Administrator, tables/policies/API keys intact. Not independently verified from here (no
+Supabase dashboard access) — worth a quick look to confirm the project genuinely shows under the
+new org, and specifically the URL-unchanged question this phase already flags below.
 
 Also a documented, self-service feature
 ([Supabase docs](https://supabase.com/docs/guides/platform/project-transfer)), but with real
@@ -85,7 +110,13 @@ prerequisites and one confirmed downtime case:
 - [ ] After transfer: re-run `node scripts/db-hygiene.mjs` against whatever connection string is
       current, to confirm the data and RLS policies survived intact.
 
-## Phase 4 — Paddle
+## Phase 4 — Paddle 🟡 mostly done — one open item: legal entity name / product website fields locked pending Paddle support
+
+Reported 2026-08-20: `admin@avalonlabs-platform.com` added as Admin, `avalonlabs-platform.com`
+passed domain review, statement descriptor updated to `AVALONLABS`, webhook endpoint points at
+`www.avalonlabs-platform.com/api/webhooks/paddle`, and a support ticket is open asking Paddle to
+update the locked legal entity name and product website fields. **Next action: none on your end
+until Paddle responds to that ticket** — no need to re-poll them, just watch for their reply.
 
 **No self-service "convert this account to a business entity" or "transfer this account" flow is
 publicly documented.** Paddle's public help content only covers choosing between one account for
@@ -110,7 +141,7 @@ subscriptions carry over automatically. Do not guess at this one:
       `node scripts/paddle-controller.mjs subs` against the new credentials to confirm the catalog
       and subscription data are intact and visible.
 
-## Phase 5 — Expo / EAS
+## Phase 5 — Expo / EAS ⬜ not started — next action: create/confirm the destination Expo Organization, then use the transfer flow linked below
 
 Expo confirms project transfers between accounts are supported, but the detailed mechanics (build
 history, stored credentials, whether this forces a package-name change) aren't spelled out in the
@@ -130,7 +161,7 @@ a complete procedure, and re-confirm against
 - [ ] Re-generate `EXPO_TOKEN` scoped to the destination account (Phase 7), and re-run
       `node scripts/expo-controller.mjs` to confirm build history is visible from the new account.
 
-## Phase 6 — Anthropic Console (API access for `/api/chat`)
+## Phase 6 — Anthropic Console (API access for `/api/chat`) ⬜ not started — next action: check whether `ANTHROPIC_API_KEY` is still tied to a personal account
 
 - [ ] If `ANTHROPIC_API_KEY` is currently tied to a personal Anthropic account, create an
       Organization in the Anthropic Console for the business entity, add a workspace, and issue a new
@@ -138,7 +169,7 @@ a complete procedure, and re-confirm against
 - [ ] Update `ANTHROPIC_API_KEY` in Vercel's environment variables (Phase 2 already moved the project
       — this is a value update on the new team, not a re-transfer).
 
-## Phase 7 — Rotate every credential, regardless of how the above went
+## Phase 7 — Rotate every credential, regardless of how the above went ⬜ explicitly deferred by you for now — no action needed until you're ready
 
 This is the one phase that's entirely under your control today and doesn't depend on any platform's
 transfer mechanics. `scripts/.env.ops` has been holding live, working credentials in plaintext for
@@ -157,17 +188,32 @@ them, transfer mechanics aside:
       three baked `env` blocks with every new value. Confirm `scripts/.env.ops` and `.env.local` are
       still covered by the repo's blanket `.env*` gitignore rule after any file renames.
 
-## Phase 8 — Domain (deferred, not yet applicable)
+## Phase 8 — Domain ✅ done (verified 2026-08-20 — fetched `https://www.avalonlabs-platform.com` directly and confirmed it's live, serving the correct branded content, no errors)
 
-No custom domain is in use yet — still on the default `avalonlabs-platform.vercel.app`. If one gets
-added before or during this migration, Vercel's domain-transfer docs
+`avalonlabs-platform.com` is live on Squarespace DNS pointed at Vercel, `NEXT_PUBLIC_SITE_URL` is
+set to it in Vercel's env vars, and every hardcoded reference across the web app, extension, and
+mobile config has been synced to it (see below). One thing still worth doing if Phase 2's project
+transfer happens later: Vercel's domain-transfer docs
 ([Transferring Domains](https://vercel.com/docs/domains/working-with-domains/transfer-your-domain))
-cover moving it to the destination team; do this after Phase 2's project transfer, not before.
+cover moving a domain to a destination team — if the project moves to an org Team after the domain
+was already added under the personal account, the domain may need this extra step too.
+
+References updated to the custom domain this session (2026-08-20): `src/lib/site-config.ts`'s
+fallback URL and support/legal/privacy contact emails (now `admin@avalonlabs-platform.com`,
+Google Workspace, replacing the personal Gmail placeholder), `extension/config.js`'s
+`API_BASE_URL`, `extension/manifest.json`'s `host_permissions`, and `mobile/.env.example`,
+`mobile/.env.local`, and all three `mobile/eas.json` build profiles' `EXPO_PUBLIC_API_BASE_URL`.
+The Chrome extension was also repackaged (`dist/avalonlabs-extension-v1.1.0.zip`) with these
+changes baked in — still needs to be loaded unpacked and manually verified in a live browser (see
+Phase 9), and hasn't been submitted to the Chrome Web Store yet. The contact form's Resend `from`
+address is intentionally still `onboarding@resend.dev` — held pending your own DNS domain
+verification inside Resend.
 
 ## Phase 9 — Verification
 
 Run the full operational health check from the new home, with the new (Phase 7) credentials:
 
+- [x] Production site loads correctly at the custom domain (verified 2026-08-20 via direct fetch).
 - [ ] `node scripts/db-hygiene.mjs` — user count, subscription status breakdown, tier-gate hygiene
       check all still sane.
 - [ ] `node scripts/vercel-controller.mjs status` — production deployment healthy.
@@ -176,3 +222,9 @@ Run the full operational health check from the new home, with the new (Phase 7) 
 - [ ] `node scripts/expo-controller.mjs` — build history visible.
 - [ ] Sign in on web, mobile, and the Chrome extension end-to-end — confirm OAuth, tier gating, and
       `/api/chat` all still work from the new accounts before considering this done.
+- [ ] Load `dist/avalonlabs-extension-v1.1.0.zip` unpacked in Chrome (`chrome://extensions` →
+      Developer mode → Load unpacked, pointed at the unzipped `extension/` contents) and confirm
+      the side panel and floating quick-action pill both work against the live production domain.
+- [ ] Run a fresh EAS build (`cd mobile && eas build --profile preview --platform android`) and
+      install it on a real device/emulator to field-verify Sprint 3's multimodal/haptics/share
+      work — it's only been type-check-verified so far, never actually run.
