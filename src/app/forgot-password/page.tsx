@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { siteConfig } from "@/lib/site-config";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -16,8 +17,13 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     const supabase = createClient();
+    // siteConfig.url (the canonical production domain), not
+    // window.location.origin — same fix as oauth-buttons.tsx and for the
+    // same reason: a reset link built from whatever host happened to serve
+    // this page can point at a stale domain (e.g. the old *.vercel.app
+    // default) instead of www.avalonlabs-platform.com.
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      redirectTo: `${siteConfig.url}/auth/callback?next=/reset-password`,
     });
 
     setLoading(false);

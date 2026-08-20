@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { siteConfig } from "@/lib/site-config";
 
 function GoogleIcon() {
   return (
@@ -100,10 +101,23 @@ export function OAuthButtons({ redirectTo }: { redirectTo?: string }) {
       const params = new URLSearchParams();
       if (redirectTo) params.set("next", redirectTo);
 
+      // Build the redirect from siteConfig.url — the canonical production
+      // domain — rather than window.location.origin. window.location.origin
+      // reflects whatever host actually served this page, which can be a
+      // stale/legacy domain (e.g. the old *.vercel.app default domain, still
+      // reachable and possibly indexed or bookmarked) rather than
+      // www.avalonlabs-platform.com. Sending Google/X an authorized-but-wrong
+      // redirect URI either breaks the OAuth flow outright or, if it happens
+      // to be allowed, sends the user back through the wrong domain — both
+      // undermine the branding consistency Google's OAuth verification
+      // checks for. siteConfig.url is NEXT_PUBLIC_SITE_URL (inlined at build
+      // time, safe to read client-side) normalized and validated by
+      // normalizeSiteUrl(), with a known-good fallback if that env var is
+      // ever missing or malformed in a given deployment.
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?${params.toString()}`,
+          redirectTo: `${siteConfig.url}/auth/callback?${params.toString()}`,
         },
       });
 
