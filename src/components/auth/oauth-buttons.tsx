@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 function GoogleIcon() {
@@ -36,13 +36,64 @@ function XIcon() {
 
 type OAuthProvider = "google" | "x";
 
+// `signInWithOAuth` below does a full-page redirect to the provider — on
+// success there's normally nothing left to clean up here, since the whole
+// page unloads. But if the user cancels or hits the browser's Back button
+// from the provider's consent screen, most browsers restore this page from
+// the back-forward cache (bfcache) instead of reloading it: React state
+// comes back exactly as it was mid-redirect, so `loadingProvider` is still
+// set and the button that was clicked stays stuck on "Redirecting…",
+// disabled, with no way to retry short of a manual refresh. No single
+// signal for "we're back and the redirect didn't happen" is reliable across
+// every browser, so three independent resets cover it: `pageshow` with
+// `event.persisted` (the standard bfcache-restore signal), a `focus`
+// fallback (covers engines where `persisted` isn't set consistently), and a
+// timeout fallback (covers a redirect that silently never fires at all,
+// e.g. a blocked popup or a provider misconfiguration).
+const STUCK_LOADING_TIMEOUT_MS = 7000;
+
 export function OAuthButtons({ redirectTo }: { redirectTo?: string }) {
   const [loadingProvider, setLoadingProvider] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const stuckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearStuckTimeout() {
+    if (stuckTimeoutRef.current) {
+      clearTimeout(stuckTimeoutRef.current);
+      stuckTimeoutRef.current = null;
+    }
+  }
+
+  function resetLoading() {
+    clearStuckTimeout();
+    setLoadingProvider(null);
+  }
+
+  useEffect(() => {
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) resetLoading();
+    }
+    function handleFocus() {
+      resetLoading();
+    }
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("focus", handleFocus);
+      clearStuckTimeout();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resetLoading/clearStuckTimeout only touch local state/refs, stable across renders.
+  }, []);
 
   async function handleOAuth(provider: OAuthProvider) {
     setError(null);
     setLoadingProvider(provider);
+
+    clearStuckTimeout();
+    stuckTimeoutRef.current = setTimeout(() => {
+      setLoadingProvider(null);
+    }, STUCK_LOADING_TIMEOUT_MS);
 
     try {
       const supabase = createClient();
@@ -58,13 +109,15 @@ export function OAuthButtons({ redirectTo }: { redirectTo?: string }) {
 
       if (oauthError) {
         setError(oauthError.message);
-        setLoadingProvider(null);
+        resetLoading();
       }
-      // On success the browser navigates away to the provider — nothing else to do here.
+      // On success the browser navigates away to the provider — the timeout
+      // and event listeners above are what unstick the button if that
+      // navigation gets cancelled or reversed.
     } catch (err) {
       console.error("OAuth sign-in threw —", err);
       setError(err instanceof Error ? err.message : "Something went wrong starting sign-in.");
-      setLoadingProvider(null);
+      resetLoading();
     }
   }
 
