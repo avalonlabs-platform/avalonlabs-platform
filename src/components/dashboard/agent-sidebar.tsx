@@ -1,6 +1,6 @@
 "use client";
 
-import type { Agent } from "@/constants/agents";
+import { agentModelLabel, type Agent } from "@/constants/agents";
 import { microserviceProducts } from "@/constants/pricing-tiers";
 import { useAgentAccess } from "@/hooks/use-agent-access";
 
@@ -61,7 +61,7 @@ export function AgentSidebar({
               </span>
               <span className="mt-0.5 block text-xs text-white/40">{agent.description}</span>
               <span className="mt-1.5 inline-flex items-center rounded border border-border-subtle px-1.5 py-0.5 font-mono text-[9px] text-white/30">
-                Sonnet 5
+                {agentModelLabel(agent)}
               </span>
             </span>
           </button>

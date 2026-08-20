@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Agent } from "@/constants/agents";
+import { agentProviderLabel, type Agent } from "@/constants/agents";
 import { AgentAccessBadge } from "@/components/dashboard/agent-access-badge";
 import { MarkdownRenderer } from "@/components/dashboard/markdown-renderer";
 import { MessageExportMenu } from "@/components/dashboard/message-export-menu";
@@ -220,7 +220,7 @@ export function AgentChat({ agent }: { agent: Agent }) {
         <span className="text-xl leading-none">{agent.emoji}</span>
         <div>
           <p className="text-sm font-semibold text-white">{agent.name}</p>
-          <p className="text-xs text-white/40">Powered by Claude</p>
+          <p className="text-xs text-white/40">{agentProviderLabel(agent)}</p>
         </div>
         <AgentAccessBadge agentId={agent.id} />
       </div>

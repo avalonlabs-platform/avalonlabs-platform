@@ -21,6 +21,36 @@ export interface Agent {
 }
 
 /**
+ * Human-readable model badge for an agent's *configured default* provider —
+ * shown in the sidebar (AgentSidebar) and chat header (AgentChat). Mirrors
+ * the model IDs src/lib/llm-router.ts actually calls (ANTHROPIC_MODEL /
+ * GEMINI_MODELS) so the label never claims a different model than the one
+ * that's configured to serve this agent by default.
+ *
+ * Deliberately scoped to the *default*, not the model that served any one
+ * specific response: a request can override the provider (`provider` field
+ * / `X-LLM-Provider` header), and the router can fall back to the other
+ * provider if the preferred one errors before streaming starts (see
+ * streamChatCompletion's priming logic) — neither of those is knowable from
+ * static agent config alone, and the raw-text streaming response carries no
+ * metadata about which provider actually served it. A true per-response
+ * indicator would need route.ts to report back which provider handled the
+ * request; out of scope here since the ask was to stop the UI hardcoding
+ * "Claude" for agents actually configured to run on Gemini.
+ */
+export function agentModelLabel(agent: Pick<Agent, "preferredProvider" | "geminiModelHint">): string {
+  if (agent.preferredProvider === "gemini") {
+    return agent.geminiModelHint === "large-context" ? "Gemini 2.5 Pro" : "Gemini 2.5 Flash";
+  }
+  return "Sonnet 5";
+}
+
+/** "Powered by ..." line paired with agentModelLabel — same default-provider scope. */
+export function agentProviderLabel(agent: Pick<Agent, "preferredProvider">): string {
+  return agent.preferredProvider === "gemini" ? "Powered by Google Gemini" : "Powered by Claude";
+}
+
+/**
  * Appended to every agent's systemPrompt below (via the `agents` export at
  * the bottom of this file) so all seven agents share one consistent,
  * enterprise-grade output contract instead of each prompt re-deriving it.
