@@ -30,17 +30,18 @@ export function Hero() {
           </p>
           <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
             <span className="bg-gradient-to-br from-white via-white to-white/60 bg-clip-text text-transparent">
-              AI Agents &amp; SaaS Microservices
+              AvalonLabs
             </span>
             <br />
             <span className="bg-gradient-to-r from-glow-indigo via-glow-violet to-glow-cyan bg-clip-text text-transparent">
-              for life and business
+              AI Agents &amp; SaaS Microservices
             </span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-white/60">
-            AvalonLabs gives you specialized AI Agents and SaaS Microservices — automated software
-            tools that help individuals, small businesses, and enterprises get instant answers to
-            everyday problems.
+            AvalonLabs is an AI-powered platform that gives developers, teams, and businesses
+            specialized AI agents, multi-model LLM chat, and SaaS microservices — automated
+            software tools that turn everyday engineering and business problems into instant,
+            reliable answers.
           </p>
           <div className="mt-10 flex items-center justify-center gap-4">
             <Link

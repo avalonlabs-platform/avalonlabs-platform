@@ -15,7 +15,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const title = `${siteConfig.name} — AI Agents & SaaS Microservices`;
+// Leads with the exact app name configured on the Google OAuth consent
+// screen ("AvalonLabs") rather than the longer "AvalonLabs Platform" —
+// Google's branding verification checks that the app name on the consent
+// screen matches what's shown on the homepage, and an exact prefix match
+// here removes any ambiguity for that automated check.
+const title = `${siteConfig.shortName} — AI Agents & SaaS Microservices Platform`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -32,6 +37,11 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title,
     description: siteConfig.tagline,
+  },
+  // Google Search Console domain-ownership verification, required as part
+  // of the OAuth consent screen branding review.
+  verification: {
+    google: "VHbwmQxURdvuPySEzy0jiIK7i8iVO8-4MyY-0tQXnSw",
   },
 };
 

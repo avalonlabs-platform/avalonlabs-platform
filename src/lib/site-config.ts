@@ -51,7 +51,14 @@ function normalizeSiteUrl(raw: string | undefined): string {
 export const siteConfig = {
   name: "AvalonLabs Platform",
   shortName: "AvalonLabs",
-  tagline: "AI Agents & SaaS Microservices for people and businesses who need answers now.",
+  // Purpose statement — used as the meta description and OpenGraph/Twitter
+  // card description, and echoed in the homepage hero. Leads with the exact
+  // app name ("AvalonLabs") and states plainly what the product does, so
+  // automated reviewers (e.g. Google OAuth consent screen branding checks)
+  // and human visitors alike can tell what this site is for from the first
+  // sentence, without needing to read further.
+  tagline:
+    "AvalonLabs is an AI-powered platform that gives developers, teams, and businesses specialized AI agents, multi-model LLM chat, and SaaS microservices for everyday engineering and business tasks.",
   url: normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL),
 
   // Support & contact — routed through Google Workspace on the live
