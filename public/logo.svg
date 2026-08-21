@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Pozadinski gradijent -->
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#030712" />
+    </radialGradient>
+    <!-- Gradijent za levu stranu slova A (Cyan / Teal AI tok) -->
+    <linearGradient id="cyberCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#4facfe" />
+    </linearGradient>
+    <!-- Gradijent za desnu stranu slova A (Indigo / Purple Neural tok) -->
+    <linearGradient id="neuralPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+    <!-- Gradijent za centralno fuzioni jezgro -->
+    <linearGradient id="coreGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+    <!-- Glow filter za visoki kontrast -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <!-- Tamna zaobljena pozadina -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGlow)" />
+  <rect width="508" height="508" x="2" y="2" rx="110" fill="none" stroke="#1e293b" stroke-width="2" />
+  <!-- Avalon "A" Geometrija -->
+  <g filter="url(#neonGlow)">
+    <!-- Leva fasetirana grana slova A -->
+    <path d="M 256 84 L 108 392 L 174 392 L 256 220 Z" fill="url(#cyberCyan)" />
+    <!-- Desna fasetirana grana slova A -->
+    <path d="M 256 84 L 404 392 L 338 392 L 256 220 Z" fill="url(#neuralPurple)" />
+    <!-- Centralno lebdeće jezgro (AI Core / Prism) -->
+    <polygon points="256,192 208,296 304,296" fill="url(#coreGlow)" opacity="0.95" />
+    <!-- Donji stabilizacioni most / Lambda konektor -->
+    <polygon points="204,336 308,336 256,428" fill="#0f172a" stroke="url(#coreGlow)" stroke-width="8" stroke-linejoin="round" />
+  </g>
+  <!-- Centralna fokusna tačka -->
+  <circle cx="256" cy="272" r="14" fill="#ffffff" />
+</svg>

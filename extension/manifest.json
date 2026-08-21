@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AvalonLabs Assistant",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Chat with AvalonLabs AI agents from a persistent side panel, or select text on any page for instant Explain/Audit/Review actions.",
   "action": {
     "default_icon": {

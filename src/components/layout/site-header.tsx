@@ -59,7 +59,10 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-background/80 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-lg font-bold tracking-tight text-white">
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element -- local SVG,
+              no benefit from next/image's remote-image optimization pipeline. */}
+          <img src="/logo.svg" alt="" width={28} height={28} className="h-7 w-7 rounded-lg" />
           {siteConfig.shortName}
         </Link>
         <div className="hidden items-center gap-8 sm:flex">
