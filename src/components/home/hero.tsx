@@ -29,19 +29,21 @@ export function Hero() {
             AI-powered automation, on demand
           </p>
           <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-            <span className="bg-gradient-to-br from-white via-white to-white/60 bg-clip-text text-transparent">
+            <span className="block font-bold bg-gradient-to-br from-white via-white to-white/60 bg-clip-text text-transparent">
               AvalonLabs
             </span>
-            <br />
             <span className="bg-gradient-to-r from-glow-indigo via-glow-violet to-glow-cyan bg-clip-text text-transparent">
               AI Agents &amp; SaaS Microservices
             </span>
           </h1>
+          {/* Exact, declarative purpose statement — read by both human
+              visitors and automated reviewers (e.g. Google's OAuth consent
+              screen branding check, which flagged the previous copy as not
+              explaining the app's purpose clearly enough). Keep this literal
+              and jargon-free rather than folding in extra product detail. */}
           <p className="mx-auto mt-6 max-w-2xl text-lg text-white/60">
-            AvalonLabs is an AI-powered platform that gives developers, teams, and businesses
-            specialized AI agents, multi-model LLM chat, and SaaS microservices — automated
-            software tools that turn everyday engineering and business problems into instant,
-            reliable answers.
+            AvalonLabs is an AI-powered software platform providing specialized AI agents and SaaS
+            microservices for developers and teams.
           </p>
           <div className="mt-10 flex items-center justify-center gap-4">
             <Link

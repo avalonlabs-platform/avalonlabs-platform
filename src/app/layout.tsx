@@ -24,6 +24,12 @@ const title = `${siteConfig.shortName} — AI Agents & SaaS Microservices Platfo
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
+  // Explicit applicationName — a separate signal from `title` that some
+  // crawlers (including Google's OAuth consent screen branding reviewer)
+  // read independently when matching the app name against the OAuth
+  // consent screen's configured name. Keep it the exact, bare brand name
+  // with no descriptive suffix, matching siteConfig.shortName.
+  applicationName: siteConfig.shortName,
   title,
   description: siteConfig.tagline,
   openGraph: {
