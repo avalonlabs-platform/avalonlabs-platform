@@ -116,9 +116,15 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 -- trigger below and credits are only ever decremented server-side via the
 -- service-role client, so a user can never grant themselves more credits
 -- by calling the Supabase REST API directly with their own session.
+--
+-- auth.uid() wrapped as (select auth.uid()) — see
+-- 20260824102410_rls_perf_and_api_keys_security_gap.sql. Pure InitPlan
+-- caching, evaluated once per query instead of once per row; verified this
+-- table is only ever queried via the service-role client (src/), so RLS
+-- here is defense-in-depth and this rewrite has zero real-usage risk.
 DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
 CREATE POLICY "Users can view own profile" ON profiles
-  FOR SELECT USING (auth.uid() = id);
+  FOR SELECT USING ((select auth.uid()) = id);
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
@@ -137,6 +143,20 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- PR #1 (20260824081501_security_perf_hardening.sql) deliberately left this
+-- function's EXECUTE grants untouched pending a real usage check across the
+-- whole codebase (web + mobile). That check is done — see
+-- 20260824102410_rls_perf_and_api_keys_security_gap.sql — and found zero RPC
+-- call sites anywhere, so PUBLIC/anon/authenticated are revoked here too.
+-- This does not affect the trigger above: on_auth_user_created fires as
+-- part of the auth.users INSERT regardless of EXECUTE grants on the role
+-- performing that INSERT — trigger invocation doesn't depend on the
+-- invoking role's direct EXECUTE privilege on the trigger function itself.
+-- service_role and postgres keep EXECUTE, unchanged.
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM anon;
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM authenticated;
 
 -- One-time backfill for accounts that signed up before this table existed.
 -- Safe to re-run — ON CONFLICT skips anyone who already has a row.
@@ -197,13 +217,21 @@ CREATE INDEX IF NOT EXISTS user_analyses_user_id_created_at_idx
 
 ALTER TABLE user_analyses ENABLE ROW LEVEL SECURITY;
 
+-- auth.uid() wrapped as (select auth.uid()) in both policies below — see
+-- 20260824102410_rls_perf_and_api_keys_security_gap.sql. Pure InitPlan
+-- caching with identical row-visibility/write semantics to the
+-- un-rewritten form. Unlike profiles/api_keys, this table's RLS IS
+-- functionally load-bearing (mobile/lib/db.ts queries it via the user's
+-- own session, not a service-role client — see the table comment above),
+-- so this rewrite was checked specifically against that real usage before
+-- being applied, not just against the (already-safe) web app.
 DROP POLICY IF EXISTS "Users can view own analyses" ON user_analyses;
 CREATE POLICY "Users can view own analyses" ON user_analyses
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users can insert own analyses" ON user_analyses;
 CREATE POLICY "Users can insert own analyses" ON user_analyses
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
 
 -- No UPDATE/DELETE policy — history rows are append-only from the client;
 -- add one deliberately later if the app grows a "delete this entry" action.
@@ -244,6 +272,26 @@ ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 -- minting and revoking both go through the service-role client in
 -- src/app/api/account/api-keys/ so a stolen key can never mint a sibling key
 -- or un-revoke itself, same reasoning as `profiles` above.
+--
+-- auth.uid() wrapped as (select auth.uid()) — see
+-- 20260824102410_rls_perf_and_api_keys_security_gap.sql. Pure InitPlan
+-- caching; verified this table is only ever queried via the service-role
+-- client (src/), so RLS here is defense-in-depth and this rewrite has zero
+-- real-usage risk.
 DROP POLICY IF EXISTS "Users can view own api keys" ON api_keys;
 CREATE POLICY "Users can view own api keys" ON api_keys
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING ((select auth.uid()) = user_id);
+
+-- A second policy, "Users can manage their own api keys" (FOR ALL, USING
+-- auth.uid() = user_id, no WITH CHECK), existed live on production but was
+-- never defined in this file — like public.rls_auto_enable() noted above,
+-- it predates this file and was created directly in the dashboard. Because
+-- it had no WITH CHECK, Postgres used its USING clause for writes too,
+-- meaning a user's own session (not just the service-role client) could
+-- INSERT/UPDATE/DELETE their own api_keys rows — directly contradicting
+-- the "no INSERT/UPDATE/DELETE for anon/authenticated" model documented
+-- above. 20260824102410_rls_perf_and_api_keys_security_gap.sql drops it:
+-- verified no real code path ever relied on session-based writes to this
+-- table (every write goes through the service-role client, as noted
+-- above), so nothing was using it — it was dead-but-dangerous surface, not
+-- a needed capability. Do not re-add it.
