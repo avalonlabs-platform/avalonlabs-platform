@@ -161,7 +161,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const body: ChatRequestBody = await request.json();
+  const body: ChatRequestBody | null = await request.json().catch(() => null);
+  if (!body) {
+    return Response.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const { agentId, message, history, image, attachments: rawAttachments, provider: requestedProvider } = body;
   const attachments = Array.isArray(rawAttachments) ? rawAttachments : [];
 
