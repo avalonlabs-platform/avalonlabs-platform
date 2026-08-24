@@ -10,6 +10,17 @@
 # in CI, and wiring around that is a separate, bigger follow-up (repo
 # secrets, or refactoring those to lazy/deferred reads) rather than
 # something to fold into a test-infra PR.
+#
+# `next typegen` runs before `tsc --noEmit` for a real reason, not
+# cargo-culted: this app's route/layout files reference Next's
+# build-generated ambient types (e.g. `LayoutProps` in src/app/layout.tsx),
+# which only exist once something has populated .next/types/. A fresh CI
+# checkout has no .next/ at all, so bare `tsc --noEmit` fails with "Cannot
+# find name 'LayoutProps'" even though the exact same command passes
+# locally (where .next/ already exists from a prior `next dev`/`next
+# build`). `next typegen` generates just those types — no env vars, no
+# full build, no page rendering — confirmed locally by deleting .next/ and
+# reproducing the failure, then confirming `next typegen` fixes it.
 name: CI
 
 on:
@@ -25,9 +36,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm test
