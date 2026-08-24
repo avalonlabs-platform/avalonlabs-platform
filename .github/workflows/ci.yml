@@ -1,0 +1,33 @@
+# This repo had no CI before this file — added alongside the first unit
+# tests (src/lib/**/*.test.ts, PR "Add Vitest and unit tests for the
+# billing-critical pure logic") so that having tests actually means
+# something: a PR that breaks lint, types, or a test fails a check instead
+# of relying on a human running `npm test` locally before merging.
+#
+# Deliberately does NOT run `next build` — this app reads several
+# Paddle/Supabase env vars at import time (see src/lib/paddle/get-paddle-
+# instance.ts, src/lib/supabase/server-internal.ts) that aren't available
+# in CI, and wiring around that is a separate, bigger follow-up (repo
+# secrets, or refactoring those to lazy/deferred reads) rather than
+# something to fold into a test-infra PR.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test
