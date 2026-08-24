@@ -1,0 +1,45 @@
+# This repo had no CI before this file — added alongside the first unit
+# tests (src/lib/**/*.test.ts, PR "Add Vitest and unit tests for the
+# billing-critical pure logic") so that having tests actually means
+# something: a PR that breaks lint, types, or a test fails a check instead
+# of relying on a human running `npm test` locally before merging.
+#
+# Deliberately does NOT run `next build` — this app reads several
+# Paddle/Supabase env vars at import time (see src/lib/paddle/get-paddle-
+# instance.ts, src/lib/supabase/server-internal.ts) that aren't available
+# in CI, and wiring around that is a separate, bigger follow-up (repo
+# secrets, or refactoring those to lazy/deferred reads) rather than
+# something to fold into a test-infra PR.
+#
+# `next typegen` runs before `tsc --noEmit` for a real reason, not
+# cargo-culted: this app's route/layout files reference Next's
+# build-generated ambient types (e.g. `LayoutProps` in src/app/layout.tsx),
+# which only exist once something has populated .next/types/. A fresh CI
+# checkout has no .next/ at all, so bare `tsc --noEmit` fails with "Cannot
+# find name 'LayoutProps'" even though the exact same command passes
+# locally (where .next/ already exists from a prior `next dev`/`next
+# build`). `next typegen` generates just those types — no env vars, no
+# full build, no page rendering — confirmed locally by deleting .next/ and
+# reproducing the failure, then confirming `next typegen` fixes it.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm test

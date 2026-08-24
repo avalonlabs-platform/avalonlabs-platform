@@ -55,6 +55,11 @@ export function ApiKeysManager() {
   }
 
   useEffect(() => {
+    // Standard fetch-on-mount: loadKeys sets state inside its own async
+    // body after an await, not synchronously during this effect, so it
+    // doesn't cause the cascading-render case this rule targets. Not
+    // rewriting the fetch pattern itself here — out of scope for this PR.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadKeys();
   }, []);
 
