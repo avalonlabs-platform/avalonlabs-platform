@@ -43,6 +43,14 @@ ALTER TABLE customers ADD CONSTRAINT customers_email_not_empty CHECK (email <> '
 -- call normalizeEmail() before an insert/update still can't leave a
 -- non-normalized value that email-based lookups (agent-access,
 -- subscription-status, credit-badge, portal) would silently fail to match.
+-- Re-fixed in 20260824112929_fix_normalize_customer_email_search_path.sql:
+-- the search_path pin below was somehow missing again on production after
+-- PR #1 shipped it (verified live via pg_proc.proconfig being NULL, plus
+-- \r\n line endings on the live function body suggesting an out-of-band
+-- CREATE OR REPLACE against the database directly — the same pattern seen
+-- once before with handle_new_user's EXECUTE grants). If this ever shows
+-- up a third time, treat it as a signal to lock down who/what has direct
+-- SQL-editor access to production, not just re-apply the fix again.
 CREATE OR REPLACE FUNCTION public.normalize_customer_email()
 RETURNS TRIGGER
 LANGUAGE plpgsql
