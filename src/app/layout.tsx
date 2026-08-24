@@ -51,6 +51,24 @@ export const metadata: Metadata = {
   },
 };
 
+// JSON-LD Organization schema — read by Google Search (and other engines)
+// to attach a verified name/logo/site to search results (knowledge panel,
+// sitelinks search box, etc.), independent of the OAuth consent-screen
+// branding review. Logo points at a static PNG rather than logo.svg:
+// Google's structured-data guidelines list JPEG/PNG/WebP/GIF as supported
+// logo formats and don't document SVG support, so a PNG is the safer
+// choice here even though the site's UI can use the SVG freely elsewhere.
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: siteConfig.shortName,
+  legalName: siteConfig.legalEntityName,
+  url: siteConfig.url,
+  logo: `${siteConfig.url}/logo-512.png`,
+  description: siteConfig.tagline,
+  email: siteConfig.supportEmail,
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -58,6 +76,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">
+        {/* Static, locally-built JSON (no user input) — safe to inject directly. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
         <SiteHeader />
         <main className="flex-1">{children}</main>
         <SiteFooter />
