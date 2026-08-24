@@ -1,6 +1,15 @@
 -- AvalonLabs Platform — Paddle sync tables.
 -- Run once in the Supabase SQL editor (Project > SQL Editor > New query).
 --
+-- As of supabase/migrations/20260824081501_security_perf_hardening.sql,
+-- new schema changes land as a migration in supabase/migrations/ instead
+-- of being added directly to this file. This file is kept as a running
+-- full-schema reference and updated in the same PR as any migration that
+-- changes something it documents — but it is no longer the mechanism used
+-- to apply changes. (public.rls_auto_enable(), touched by that migration,
+-- isn't defined here — it predates this file and was created directly in
+-- the dashboard; see the migration for its current definition and grants.)
+--
 -- These mirror Paddle's customer/subscription/transaction state via webhooks
 -- (see src/app/api/webhooks/paddle/route.ts). Webhook writes use the service
 -- role key and bypass RLS; RLS is enabled here so the public anon key can't
@@ -37,6 +46,7 @@ ALTER TABLE customers ADD CONSTRAINT customers_email_not_empty CHECK (email <> '
 CREATE OR REPLACE FUNCTION public.normalize_customer_email()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   NEW.email := lower(trim(NEW.email));
@@ -75,6 +85,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS transactions_customer_id_idx ON transactions(customer_id);
+CREATE INDEX IF NOT EXISTS transactions_subscription_id_idx ON transactions(subscription_id);
 
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
@@ -152,6 +163,16 @@ BEGIN
   RETURN remaining;
 END;
 $$;
+
+-- Only called server-side via the service-role key (src/app/api/chat/
+-- route.ts) — anon never needed REST access to this RPC. PUBLIC is
+-- revoked too, not just anon: Postgres grants EXECUTE to PUBLIC by
+-- default, and every role (anon included) inherits it, so revoking only
+-- from anon would not have closed this off. authenticated keeps its
+-- grant for now — see 20260824081501_security_perf_hardening.sql for the
+-- full reasoning.
+REVOKE EXECUTE ON FUNCTION public.decrement_free_credit(uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.decrement_free_credit(uuid) FROM anon;
 
 -- ---------------------------------------------------------------------------
 -- Mobile Collection/Dashboard history — one row per completed scan/analysis
