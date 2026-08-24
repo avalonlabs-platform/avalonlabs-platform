@@ -146,14 +146,19 @@ CREATE TRIGGER on_auth_user_created
 
 -- PR #1 (20260824081501_security_perf_hardening.sql) deliberately left this
 -- function's EXECUTE grants untouched pending a real usage check across the
--- whole codebase (web + mobile). That check is done — see
--- 20260824102410_rls_perf_and_api_keys_security_gap.sql — and found zero RPC
--- call sites anywhere, so PUBLIC/anon/authenticated are revoked here too.
--- This does not affect the trigger above: on_auth_user_created fires as
--- part of the auth.users INSERT regardless of EXECUTE grants on the role
--- performing that INSERT — trigger invocation doesn't depend on the
--- invoking role's direct EXECUTE privilege on the trigger function itself.
--- service_role and postgres keep EXECUTE, unchanged.
+-- whole codebase (web + mobile). That check is done (zero RPC call sites
+-- anywhere — see 20260824102410_rls_perf_and_api_keys_security_gap.sql) —
+-- but by the time it ran, PUBLIC/anon/authenticated had already been
+-- revoked directly against production, outside of any migration in this
+-- repo. The REVOKE statements below don't change production (they're a
+-- no-op there); they exist so a fresh environment built by replaying
+-- supabase/migrations/ in order reproduces production's actual current
+-- state instead of leaving this function open. This does not affect the
+-- trigger above: on_auth_user_created fires as part of the auth.users
+-- INSERT regardless of EXECUTE grants on the role performing that INSERT —
+-- trigger invocation doesn't depend on the invoking role's direct EXECUTE
+-- privilege on the trigger function itself. service_role and postgres
+-- keep EXECUTE, unchanged.
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM anon;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM authenticated;
@@ -281,17 +286,3 @@ ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view own api keys" ON api_keys;
 CREATE POLICY "Users can view own api keys" ON api_keys
   FOR SELECT USING ((select auth.uid()) = user_id);
-
--- A second policy, "Users can manage their own api keys" (FOR ALL, USING
--- auth.uid() = user_id, no WITH CHECK), existed live on production but was
--- never defined in this file — like public.rls_auto_enable() noted above,
--- it predates this file and was created directly in the dashboard. Because
--- it had no WITH CHECK, Postgres used its USING clause for writes too,
--- meaning a user's own session (not just the service-role client) could
--- INSERT/UPDATE/DELETE their own api_keys rows — directly contradicting
--- the "no INSERT/UPDATE/DELETE for anon/authenticated" model documented
--- above. 20260824102410_rls_perf_and_api_keys_security_gap.sql drops it:
--- verified no real code path ever relied on session-based writes to this
--- table (every write goes through the service-role client, as noted
--- above), so nothing was using it — it was dead-but-dangerous surface, not
--- a needed capability. Do not re-add it.

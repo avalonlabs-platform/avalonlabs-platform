@@ -5,8 +5,15 @@
 -- information_schema) — no rows in any application table are read,
 -- inserted, or modified. Safe to run against production after the
 -- migration applies.
+--
+-- CORRECTED from an earlier version that asserted a second api_keys
+-- policy ("Users can manage their own api keys") was dropped, and that
+-- handle_new_user's EXECUTE grants changed. Neither is true: that policy
+-- never existed on production, and handle_new_user's anon/authenticated
+-- EXECUTE was already revoked before this migration (applied out-of-band,
+-- untracked). The checks below reflect what this migration actually does.
 
-do $
+do $$
 declare
   v_qual text;
   v_check text;
@@ -53,27 +60,18 @@ begin
     raise exception 'api_keys."Users can view own api keys" USING clause not rewritten as expected, got: %', v_qual;
   end if;
 
-  -- 2. api_keys."Users can manage their own api keys" no longer exists
-  select count(*) into v_count
-  from pg_policies
-  where schemaname = 'public' and tablename = 'api_keys'
-    and policyname = 'Users can manage their own api keys';
-
-  if v_count <> 0 then
-    raise exception 'api_keys."Users can manage their own api keys" still exists — expected it dropped';
-  end if;
-
-  -- 2b. api_keys still has exactly one policy (the SELECT-only one) —
-  -- confirms we didn't accidentally drop or duplicate anything else.
+  -- 1e. Regression guard: api_keys still has exactly the one policy it
+  -- had before this migration (this migration does not add or drop any
+  -- policy, only rewrites the USING clause of the existing one).
   select count(*) into v_count
   from pg_policies
   where schemaname = 'public' and tablename = 'api_keys';
 
   if v_count <> 1 then
-    raise exception 'expected exactly 1 policy on api_keys after the drop, found %', v_count;
+    raise exception 'expected exactly 1 policy on api_keys, found % — this migration does not add or remove policies on this table', v_count;
   end if;
 
-  -- 3a. handle_new_user: PUBLIC no longer has EXECUTE
+  -- 2a. handle_new_user: PUBLIC has no EXECUTE
   select count(*) into v_count
   from information_schema.role_routine_grants
   where routine_name = 'handle_new_user' and grantee = 'PUBLIC';
@@ -82,7 +80,7 @@ begin
     raise exception 'PUBLIC still has EXECUTE on handle_new_user()';
   end if;
 
-  -- 3b. handle_new_user: anon no longer has EXECUTE
+  -- 2b. handle_new_user: anon has no EXECUTE
   select count(*) into v_count
   from information_schema.role_routine_grants
   where routine_name = 'handle_new_user' and grantee = 'anon';
@@ -91,7 +89,7 @@ begin
     raise exception 'anon still has EXECUTE on handle_new_user()';
   end if;
 
-  -- 3c. handle_new_user: authenticated no longer has EXECUTE
+  -- 2c. handle_new_user: authenticated has no EXECUTE
   select count(*) into v_count
   from information_schema.role_routine_grants
   where routine_name = 'handle_new_user' and grantee = 'authenticated';
@@ -100,7 +98,7 @@ begin
     raise exception 'authenticated still has EXECUTE on handle_new_user()';
   end if;
 
-  -- 3d. Regression guard: service_role and postgres still have EXECUTE —
+  -- 2d. Regression guard: service_role and postgres still have EXECUTE —
   -- this migration must not touch their access.
   select count(*) into v_count
   from information_schema.role_routine_grants
@@ -110,7 +108,7 @@ begin
     raise exception 'expected service_role and postgres to both still have EXECUTE on handle_new_user(), found % matching grants', v_count;
   end if;
 
-  -- 3e. Regression guard: the AFTER INSERT trigger on auth.users still
+  -- 2e. Regression guard: the AFTER INSERT trigger on auth.users still
   -- exists, is enabled, and still fires handle_new_user — this migration
   -- must not affect automatic trigger firing on signup.
   select count(*) into v_count
@@ -124,9 +122,9 @@ begin
     raise exception 'on_auth_user_created trigger missing, disabled, or malformed after migration';
   end if;
 
-  -- 3f. Regression guard: handle_new_user's function body itself is
+  -- 2f. Regression guard: handle_new_user's function body itself is
   -- untouched by this migration (only grants changed) — SECURITY DEFINER
-  -- and search_path stay pinned to 'public' as set in PR #1 / prior state.
+  -- and search_path stay pinned to 'public'.
   select count(*) into v_count
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
@@ -139,9 +137,9 @@ begin
     raise exception 'handle_new_user() SECURITY DEFINER / search_path state changed unexpectedly';
   end if;
 
-  -- 4. Regression guard: the three tables' baseline RLS-enabled state is
-  -- unchanged — this migration only touches policies and one function's
-  -- grants, never RLS enablement itself.
+  -- 3. Regression guard: the three tables' baseline RLS-enabled state is
+  -- unchanged — this migration only touches policy USING/WITH CHECK
+  -- clauses and one function's grants, never RLS enablement itself.
   select count(*) into v_count
   from pg_tables t
   join pg_class c on c.relname = t.tablename
@@ -154,6 +152,6 @@ begin
     raise exception 'expected RLS still enabled on all of profiles/user_analyses/api_keys, found % with RLS enabled', v_count;
   end if;
 
-  raise notice 'All checks passed: RLS policies rewritten, dangling api_keys write policy dropped, handle_new_user EXECUTE locked down, triggers/RLS-enablement untouched.';
+  raise notice 'All checks passed: auth_rls_initplan policies rewritten, handle_new_user EXECUTE lockdown codified, triggers/RLS-enablement/policy-count untouched.';
 
-end $;
+end $$;
