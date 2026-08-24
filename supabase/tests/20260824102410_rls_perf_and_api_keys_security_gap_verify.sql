@@ -12,12 +12,21 @@
 -- never existed on production, and handle_new_user's anon/authenticated
 -- EXECUTE was already revoked before this migration (applied out-of-band,
 -- untracked). The checks below reflect what this migration actually does.
+--
+-- CORRECTED AGAIN: checks 1a-1d originally compared qual/with_check
+-- against a literal '((SELECT auth.uid()) = id)'-style string. Postgres
+-- pretty-prints a scalar subquery with an auto-generated column alias —
+-- the real stored text is '(( SELECT auth.uid() AS uid) = id)' — so that
+-- literal match failed even though the rewrite was correct. Fixed by
+-- normalizing whitespace/case and accepting the alias as optional, so
+-- this isn't brittle against exact Postgres pretty-printing again.
 
 do $$
 declare
   v_qual text;
   v_check text;
   v_count int;
+  v_norm text;
 begin
 
   -- 1a. profiles."Users can view own profile" now uses (select auth.uid())
@@ -26,7 +35,8 @@ begin
   where schemaname = 'public' and tablename = 'profiles'
     and policyname = 'Users can view own profile';
 
-  if v_qual is distinct from '((SELECT auth.uid()) = id)' then
+  v_norm := lower(regexp_replace(coalesce(v_qual, ''), '\s+', '', 'g'));
+  if v_norm not in ('((selectauth.uid())=id)', '((selectauth.uid()asuid)=id)') then
     raise exception 'profiles."Users can view own profile" USING clause not rewritten as expected, got: %', v_qual;
   end if;
 
@@ -36,7 +46,8 @@ begin
   where schemaname = 'public' and tablename = 'user_analyses'
     and policyname = 'Users can view own analyses';
 
-  if v_qual is distinct from '((SELECT auth.uid()) = user_id)' then
+  v_norm := lower(regexp_replace(coalesce(v_qual, ''), '\s+', '', 'g'));
+  if v_norm not in ('((selectauth.uid())=user_id)', '((selectauth.uid()asuid)=user_id)') then
     raise exception 'user_analyses."Users can view own analyses" USING clause not rewritten as expected, got: %', v_qual;
   end if;
 
@@ -46,7 +57,8 @@ begin
   where schemaname = 'public' and tablename = 'user_analyses'
     and policyname = 'Users can insert own analyses';
 
-  if v_check is distinct from '((SELECT auth.uid()) = user_id)' then
+  v_norm := lower(regexp_replace(coalesce(v_check, ''), '\s+', '', 'g'));
+  if v_norm not in ('((selectauth.uid())=user_id)', '((selectauth.uid()asuid)=user_id)') then
     raise exception 'user_analyses."Users can insert own analyses" WITH CHECK clause not rewritten as expected, got: %', v_check;
   end if;
 
@@ -56,7 +68,8 @@ begin
   where schemaname = 'public' and tablename = 'api_keys'
     and policyname = 'Users can view own api keys';
 
-  if v_qual is distinct from '((SELECT auth.uid()) = user_id)' then
+  v_norm := lower(regexp_replace(coalesce(v_qual, ''), '\s+', '', 'g'));
+  if v_norm not in ('((selectauth.uid())=user_id)', '((selectauth.uid()asuid)=user_id)') then
     raise exception 'api_keys."Users can view own api keys" USING clause not rewritten as expected, got: %', v_qual;
   end if;
 
