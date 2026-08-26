@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ToolDemoExample } from "@/constants/tools";
+import { MarkdownRenderer } from "@/components/dashboard/markdown-renderer";
 
 type ChatMessage = { id: number; role: "user" | "agent"; content: string; typing?: boolean };
-/** Parsed pieces of an agent response — code fences get IDE-style chrome,
- *  everything else renders as plain terminal output. */
-type ContentPart = { type: "text" | "code"; content: string; lang?: string };
 
 const MAX_MESSAGE_LENGTH = 500;
 
@@ -17,90 +15,24 @@ function nextId() {
   return idCounter;
 }
 
-/** Splits on ```fenced``` code blocks so they can get distinct IDE-style
- *  rendering — the rest stays as plain terminal output text. */
-function parseContent(text: string): ContentPart[] {
-  const parts: ContentPart[] = [];
-  const fence = /```(\w*)\n?([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = fence.exec(text))) {
-    if (match.index > lastIndex) {
-      parts.push({ type: "text", content: text.slice(lastIndex, match.index) });
-    }
-    parts.push({ type: "code", content: match[2].replace(/\n$/, ""), lang: match[1] || undefined });
-    lastIndex = fence.lastIndex;
-  }
-  if (lastIndex < text.length) {
-    parts.push({ type: "text", content: text.slice(lastIndex) });
-  }
-  return parts;
-}
-
-/** Lightweight inline-markdown for **bold** and `code` within a text segment
- *  — no fenced code block here, just short emphasis/identifiers Claude tends
- *  to sprinkle through prose (e.g. `customer_id`, **composite index**). */
-function renderInline(text: string) {
-  const pattern = /\*\*(.+?)\*\*|`(.+?)`/g;
-  const nodes: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
-
-  while ((match = pattern.exec(text))) {
-    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    if (match[1] !== undefined) {
-      nodes.push(
-        <strong key={key++} className="font-semibold text-white">
-          {match[1]}
-        </strong>
-      );
-    } else {
-      nodes.push(
-        <code key={key++} className="rounded bg-white/10 px-1 py-0.5 text-xs text-glow-cyan">
-          {match[2]}
-        </code>
-      );
-    }
-    lastIndex = pattern.lastIndex;
-  }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
-  return nodes;
-}
-
-function MessageContent({ content }: { content: string }) {
-  const parts = parseContent(content);
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.type === "code" ? (
-          <div key={i} className="my-2 overflow-hidden rounded-lg border border-border-subtle bg-black/50">
-            {part.lang && (
-              <div className="border-b border-border-subtle px-3 py-1 text-[10px] font-medium tracking-wide text-white/40 uppercase">
-                {part.lang}
-              </div>
-            )}
-            <pre className="overflow-x-auto px-3 py-2 font-mono text-xs leading-relaxed text-glow-cyan">
-              {part.content}
-            </pre>
-          </div>
-        ) : (
-          part.content && (
-            <span key={i} className="whitespace-pre-wrap">
-              {renderInline(part.content)}
-            </span>
-          )
-        )
-      )}
-    </>
-  );
-}
-
 /** Public, unauthenticated mini-demo for a /tools/[slug] landing page — posts to the
  *  same rate-limited /api/demo-chat endpoint as the homepage hero, pointed at this
- *  specific agent's real system prompt via agentId for an on-topic preview. Styled
- *  as a terminal transcript rather than chat bubbles to fit the technical audience. */
+ *  specific agent's real system prompt via agentId for an on-topic preview.
+ *
+ *  Renders through the same MarkdownRenderer a paying customer's dashboard
+ *  response uses (Revenue Recovery Track B, step 2) — previously this had its
+ *  own lightweight parser that only handled ```fenced``` code blocks,
+ *  **bold** text, and `code` spans, so the "[STATUS: LEVEL]" marker every agent's
+ *  systemPrompt is instructed to lead with (see RESPONSE_FORMAT_DIRECTIVE in
+ *  src/constants/agents.ts) rendered as literal bracketed text instead of the
+ *  colored StatusBadge. Sharing the real renderer means an anonymous visitor
+ *  sees the same enterprise-grade "[STATUS: ...]" badge + Executive Summary a
+ *  paying customer sees — the free preview's whole "60-second aha" only works
+ *  if it looks like the real product. The route this posts to
+ *  (src/app/api/demo-chat/route.ts) is responsible for making sure the model
+ *  stops after the Executive Summary in this unauthenticated context — see
+ *  TOOL_PREVIEW_GUARD there — since anything sent over this stream is
+ *  visible in the network tab regardless of how it's rendered here. */
 export function ToolDemo({
   agentId,
   placeholder,
@@ -204,8 +136,8 @@ export function ToolDemo({
                   <span className="text-glow-cyan">$</span> {m.content}
                 </p>
               ) : (
-                <div className="pl-3 leading-relaxed text-white/70">
-                  <MessageContent content={m.content} />
+                <div className="pl-3">
+                  <MarkdownRenderer content={m.content} />
                   {m.typing && <span className="animate-caret ml-0.5 inline-block w-1.5 bg-glow-cyan align-middle">&nbsp;</span>}
                 </div>
               )}

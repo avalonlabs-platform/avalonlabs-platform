@@ -38,9 +38,7 @@ export function AttachmentBar({
           }`}
         >
           {att.previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- transient
-            // client-only blob: URL preview, not an asset for Next's image
-            // optimizer to process.
+            // eslint-disable-next-line @next/next/no-img-element -- transient client-only blob: URL preview, not an asset for Next's image optimizer to process.
             <img src={att.previewUrl} alt="" className="h-8 w-8 rounded object-cover" />
           ) : (
             <span className="text-base leading-none">{CATEGORY_ICON[att.category ?? "text"]}</span>
