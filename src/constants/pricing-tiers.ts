@@ -7,6 +7,15 @@ export interface PricingTier {
   featured: boolean;
   /** Paddle price IDs, populated via env vars once the catalog exists in Paddle. */
   priceId: { month: string; year: string };
+  /**
+   * Trial length as configured on this tier's Paddle price(s), if any. Only
+   * set where confirmed against the actual Paddle catalog — Starter's is
+   * verified (7-day trial, $0 due today at checkout). Pro/Advanced aren't
+   * set here because their Paddle trial config hasn't been confirmed yet;
+   * check Paddle's dashboard for each price before adding a value, since an
+   * unverified number shown on the card is worse than no badge at all.
+   */
+  trialDays?: number;
 }
 
 export const pricingTiers: PricingTier[] = [
@@ -26,6 +35,7 @@ export const pricingTiers: PricingTier[] = [
       month: process.env.NEXT_PUBLIC_PADDLE_PRICE_STARTER_MONTH ?? "",
       year: process.env.NEXT_PUBLIC_PADDLE_PRICE_STARTER_YEAR ?? "",
     },
+    trialDays: 7,
   },
   {
     name: "Pro",

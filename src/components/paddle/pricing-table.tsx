@@ -150,6 +150,16 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
                     {loading || !formatted ? "…" : formatted}
                     <span className="text-base font-normal text-white/40">/{frequency}</span>
                   </p>
+                  {/* The trial itself already exists in Paddle and shows up
+                      correctly at checkout ($0 due today) — it just wasn't
+                      surfaced anywhere before that, so a visitor scanning
+                      the cards only ever saw "$10/month" and had no reason
+                      to click through to discover it's free up front. */}
+                  {tier.trialDays && (
+                    <p className="mt-1 text-sm font-medium text-emerald-400">
+                      Includes {tier.trialDays}-Day Free Trial ($0 due today)
+                    </p>
+                  )}
                 </div>
 
                 <ul className="mt-6 flex-1 space-y-3 text-sm text-white/60">
