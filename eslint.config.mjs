@@ -34,6 +34,20 @@ const eslintConfig = defineConfig([
     // that's what broke CI (avalonlabs-platform CI #12-#14) once this
     // folder was first committed.
     "github-action/**",
+    // avalon-video/ is a separate Remotion video-rendering project — its own
+    // package.json, tsconfig.json, and (already) its own eslint.config.mjs
+    // (`@remotion/eslint-config-flat`), meant to be linted with its own
+    // tooling, not this app's. tsconfig.json already excludes it from this
+    // project's TS compilation for the same reason. It was never added here
+    // too, which is the actual gap this ignore closes — not a new boundary,
+    // just finishing one already started. Confirmed by reproducing locally:
+    // `npx eslint .` without this ignore throws a real
+    // @typescript-eslint/no-empty-object-type error on
+    // avalon-video/src/Composition.tsx's `type Props = {}` (Remotion's own
+    // scaffold default, present since before this project's CI existed) —
+    // a second, independent cause of the same CI failures as github-action/
+    // above, not something introduced today.
+    "avalon-video/**",
   ]),
 ]);
 
