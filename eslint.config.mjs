@@ -21,6 +21,19 @@ const eslintConfig = defineConfig([
     // compilation for the same reason — this brings eslint in line with
     // that existing boundary rather than establishing a new one.
     "mobile/**",
+    // github-action/ is a standalone, plain-CommonJS Node.js project (the
+    // "Agent Code Merge Gate" GitHub Action runner) meant to be extracted
+    // into its own repo — see github-action/agent-code-merge-gate/README.md.
+    // It deliberately uses require()/module.exports (the pinned dependency
+    // majors need it — see that README's "Dependency pin note") and isn't
+    // part of this app's tsconfig project, so eslint-config-next/typescript's
+    // typed rules (e.g. @typescript-eslint/no-require-imports) don't apply
+    // to it and shouldn't be asked to. Confirmed by reproducing the failure
+    // locally: `npx eslint .` on this folder without this ignore throws
+    // three `no-require-imports` errors on index.js's require() calls —
+    // that's what broke CI (avalonlabs-platform CI #12-#14) once this
+    // folder was first committed.
+    "github-action/**",
   ]),
 ]);
 
