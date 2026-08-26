@@ -37,6 +37,13 @@ h1 {
   font-weight: 600;
 }
 
+.logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
 .dot {
   width: 8px;
   height: 8px;

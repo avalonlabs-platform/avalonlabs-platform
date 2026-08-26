@@ -1,0 +1,5 @@
+{
+  "enabledPlugins": {
+    "paddle@paddle-agent-skills": true
+  }
+}

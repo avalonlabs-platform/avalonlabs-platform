@@ -4,6 +4,17 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { InteractiveDemo } from "@/components/home/interactive-demo";
 
+// Same fix as SiteHeader's nav links: a Link to "/#id" only reliably
+// scrolls when navigating to "/" from elsewhere. Clicked from the home page
+// itself — which is the only place this hero ever renders — the pathname
+// doesn't change, so there's nothing for the browser/router to hang a
+// scroll off, and it was observed to silently do nothing. Scroll directly.
+function scrollToSection(event: React.MouseEvent<HTMLAnchorElement>, id: string) {
+  event.preventDefault();
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.history.replaceState(null, "", `/#${id}`);
+}
+
 export function Hero() {
   return (
     <section id="agents" className="relative overflow-hidden">
@@ -21,7 +32,7 @@ export function Hero() {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.35 }}
           className="mx-auto max-w-3xl text-center"
         >
           <p className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-sm text-white/70 backdrop-blur">
@@ -48,12 +59,14 @@ export function Hero() {
           <div className="mt-10 flex items-center justify-center gap-4">
             <Link
               href="/#pricing"
+              onClick={(event) => scrollToSection(event, "pricing")}
               className="rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-transform hover:scale-[1.03]"
             >
               View plans
             </Link>
             <Link
               href="/#contact"
+              onClick={(event) => scrollToSection(event, "contact")}
               className="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white/90 transition-colors hover:bg-white/5"
             >
               Talk to us
@@ -64,7 +77,7 @@ export function Hero() {
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.15 }}
+          transition={{ duration: 0.35, delay: 0.1 }}
           className="mx-auto mt-16 max-w-2xl"
         >
           <InteractiveDemo />

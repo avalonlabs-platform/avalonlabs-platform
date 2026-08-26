@@ -1,0 +1,298 @@
+[
+  {
+    "id": "hook",
+    "file": "hook.mp3",
+    "durationMs": 5328,
+    "leadInMs": 400,
+    "ratePct": 27,
+    "words": [
+      {
+        "text": "Shipping",
+        "startMs": 79,
+        "endMs": 315
+      },
+      {
+        "text": "production",
+        "startMs": 325,
+        "endMs": 689
+      },
+      {
+        "text": "code",
+        "startMs": 689,
+        "endMs": 994
+      },
+      {
+        "text": "shouldn't",
+        "startMs": 1102,
+        "endMs": 1358
+      },
+      {
+        "text": "mean",
+        "startMs": 1358,
+        "endMs": 1535
+      },
+      {
+        "text": "gambling",
+        "startMs": 1545,
+        "endMs": 1998
+      },
+      {
+        "text": "with",
+        "startMs": 1998,
+        "endMs": 2096
+      },
+      {
+        "text": "unoptimized",
+        "startMs": 2146,
+        "endMs": 2913
+      },
+      {
+        "text": "queries",
+        "startMs": 2923,
+        "endMs": 3494
+      },
+      {
+        "text": "and",
+        "startMs": 3592,
+        "endMs": 3701
+      },
+      {
+        "text": "hidden",
+        "startMs": 3701,
+        "endMs": 3976
+      },
+      {
+        "text": "security",
+        "startMs": 3976,
+        "endMs": 4350
+      },
+      {
+        "text": "vulnerabilities",
+        "startMs": 4350,
+        "endMs": 5030
+      }
+    ]
+  },
+  {
+    "id": "microservices",
+    "file": "microservices.mp3",
+    "durationMs": 7128,
+    "leadInMs": 400,
+    "ratePct": 23,
+    "words": [
+      {
+        "text": "Meet",
+        "startMs": 81,
+        "endMs": 295
+      },
+      {
+        "text": "AvalonLabs",
+        "startMs": 396,
+        "endMs": 1159
+      },
+      {
+        "text": "Autonomous",
+        "startMs": 1494,
+        "endMs": 1992
+      },
+      {
+        "text": "microservices",
+        "startMs": 2002,
+        "endMs": 2876
+      },
+      {
+        "text": "designed",
+        "startMs": 2876,
+        "endMs": 3364
+      },
+      {
+        "text": "to",
+        "startMs": 3364,
+        "endMs": 3455
+      },
+      {
+        "text": "analyze",
+        "startMs": 3465,
+        "endMs": 4035
+      },
+      {
+        "text": "refactor",
+        "startMs": 4248,
+        "endMs": 4868
+      },
+      {
+        "text": "and",
+        "startMs": 5173,
+        "endMs": 5234
+      },
+      {
+        "text": "secure",
+        "startMs": 5234,
+        "endMs": 5610
+      },
+      {
+        "text": "your",
+        "startMs": 5610,
+        "endMs": 5752
+      },
+      {
+        "text": "systems",
+        "startMs": 5752,
+        "endMs": 6250
+      },
+      {
+        "text": "in",
+        "startMs": 6250,
+        "endMs": 6311
+      },
+      {
+        "text": "seconds",
+        "startMs": 6311,
+        "endMs": 6819
+      }
+    ]
+  },
+  {
+    "id": "precision",
+    "file": "precision.mp3",
+    "durationMs": 6336,
+    "leadInMs": 400,
+    "ratePct": 25,
+    "words": [
+      {
+        "text": "Built",
+        "startMs": 80,
+        "endMs": 230
+      },
+      {
+        "text": "for",
+        "startMs": 240,
+        "endMs": 360
+      },
+      {
+        "text": "modern",
+        "startMs": 370,
+        "endMs": 720
+      },
+      {
+        "text": "engineering",
+        "startMs": 720,
+        "endMs": 1100
+      },
+      {
+        "text": "teams",
+        "startMs": 1100,
+        "endMs": 1590
+      },
+      {
+        "text": "Zero",
+        "startMs": 1910,
+        "endMs": 2200
+      },
+      {
+        "text": "configuration",
+        "startMs": 2210,
+        "endMs": 2910
+      },
+      {
+        "text": "no",
+        "startMs": 3130,
+        "endMs": 3370
+      },
+      {
+        "text": "mandatory",
+        "startMs": 3370,
+        "endMs": 3840
+      },
+      {
+        "text": "sign-ups",
+        "startMs": 3850,
+        "endMs": 4350
+      },
+      {
+        "text": "and",
+        "startMs": 4540,
+        "endMs": 4690
+      },
+      {
+        "text": "instant",
+        "startMs": 4700,
+        "endMs": 4990
+      },
+      {
+        "text": "real-time",
+        "startMs": 4990,
+        "endMs": 5350
+      },
+      {
+        "text": "diagnostics",
+        "startMs": 5350,
+        "endMs": 6040
+      }
+    ]
+  },
+  {
+    "id": "cta",
+    "file": "cta.mp3",
+    "durationMs": 5136,
+    "leadInMs": 400,
+    "ratePct": 40,
+    "words": [
+      {
+        "text": "Optimize",
+        "startMs": 71,
+        "endMs": 420
+      },
+      {
+        "text": "your",
+        "startMs": 420,
+        "endMs": 491
+      },
+      {
+        "text": "stack",
+        "startMs": 500,
+        "endMs": 732
+      },
+      {
+        "text": "today",
+        "startMs": 732,
+        "endMs": 1009
+      },
+      {
+        "text": "Explore",
+        "startMs": 1286,
+        "endMs": 1795
+      },
+      {
+        "text": "autonomous",
+        "startMs": 1866,
+        "endMs": 2366
+      },
+      {
+        "text": "developer",
+        "startMs": 2366,
+        "endMs": 2759
+      },
+      {
+        "text": "intelligence",
+        "startMs": 2759,
+        "endMs": 3259
+      },
+      {
+        "text": "at",
+        "startMs": 3446,
+        "endMs": 3536
+      },
+      {
+        "text": "avalonlabs-platform",
+        "startMs": 3616,
+        "endMs": 4437
+      },
+      {
+        "text": ".com",
+        "startMs": 4446,
+        "endMs": 4866
+      }
+    ]
+  }
+]

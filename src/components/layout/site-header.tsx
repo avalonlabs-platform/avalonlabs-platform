@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { siteConfig } from "@/lib/site-config";
 import { createClient } from "@/lib/supabase/client";
 
 const navLinks = [
-  { href: "/#agents", label: "AI Agents" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/#contact", label: "Contact" },
+  { href: "/#agents", id: "agents", label: "AI Agents" },
+  { href: "/#pricing", id: "pricing", label: "Pricing" },
+  { href: "/#contact", id: "contact", label: "Contact" },
 ];
 
 /** Checked client-side so the rest of the page stays statically prerenderable. */
@@ -56,6 +57,25 @@ function AuthNav() {
 }
 
 export function SiteHeader() {
+  const pathname = usePathname();
+
+  // Plain `<Link href="/#pricing">` only reliably scrolls when navigating
+  // *to* "/" from elsewhere — the browser/router has a fresh page load to
+  // land on and jump the hash into view. Clicking it while already on "/"
+  // was a no-op in production: the pathname doesn't change, so there's no
+  // navigation for anything to hang a scroll off of, and the click silently
+  // did nothing. Handling it explicitly here — scroll directly to the
+  // section when we're already on the home page, and only fall back to
+  // normal Link navigation (which still works) from any other route —
+  // makes it work from both places instead of depending on which one the
+  // visitor happened to be on.
+  function handleNavClick(event: React.MouseEvent<HTMLAnchorElement>, id: string) {
+    if (pathname !== "/") return;
+    event.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `/#${id}`);
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-background/80 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
@@ -70,6 +90,7 @@ export function SiteHeader() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={(event) => handleNavClick(event, link.id)}
               className="text-sm font-medium text-white/60 hover:text-white"
             >
               {link.label}
