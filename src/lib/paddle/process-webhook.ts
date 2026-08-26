@@ -17,6 +17,7 @@ import {
 import { createInternalClient } from "@/lib/supabase/server-internal";
 import { getPaddleInstance } from "@/lib/paddle/get-paddle-instance";
 import { normalizeEmail } from "@/lib/normalize-email";
+import { scheduleLifecycleSequence } from "@/lib/email/lifecycle";
 
 // Paddle's subscription lifecycle fires distinct event types for each status
 // transition — trialing -> active goes out as `subscription.activated`, not
@@ -98,12 +99,20 @@ export async function processEvent(event: EventEntity) {
     case EventName.SubscriptionUpdated:
     case EventName.SubscriptionCanceled:
     case EventName.SubscriptionActivated:
-    case EventName.SubscriptionTrialing:
     case EventName.SubscriptionPaused:
     case EventName.SubscriptionResumed:
     case EventName.SubscriptionPastDue:
     case EventName.SubscriptionImported:
       return upsertSubscription(event);
+    case EventName.SubscriptionTrialing:
+      // Same idempotent upsert as every other subscription event, plus one
+      // side effect specific to this transition: this is the moment someone
+      // has entered a trial but hasn't paid yet, which is the closest signal
+      // this codebase currently has to "signed up, hasn't converted" — see
+      // notifyTrialStarted's own comment for why this is a stand-in trigger,
+      // not the real one described in the Revenue Recovery plan.
+      await upsertSubscription(event);
+      return notifyTrialStarted(event);
     case EventName.TransactionCompleted:
       return upsertTransaction(event);
     case EventName.CustomerCreated:
@@ -133,6 +142,45 @@ async function upsertSubscription(event: SubscriptionEvent) {
   });
 
   if (error) throw error;
+}
+
+/**
+ * Revenue Recovery Track B step 3 scaffolding: fires the Day 0/2/4/6
+ * lifecycle nurture sequence (src/lib/email/lifecycle.ts) when a Paddle
+ * subscription enters "trialing" — the closest signal this codebase
+ * currently has to the plan's actual trigger ("email captured right after
+ * the free preview, tagged with which niche page they came from"), which
+ * needs signup-time niche tagging that doesn't exist yet (see the
+ * onboarding gap called out in project memory / the Revenue Recovery docs).
+ * Every trial-starter gets the generic (niche: null) copy until that's
+ * built. Deliberately swallows its own errors: a lifecycle email failing to
+ * send must never turn into a failed webhook — Paddle would interpret a
+ * non-2xx response as "retry this event" and re-run the whole idempotent
+ * subscription upsert above for no reason.
+ */
+async function notifyTrialStarted(event: SubscriptionTrialingEvent) {
+  const sub = event.data;
+  const email = emailFromCustomData(sub.customData) ?? (await lookUpCustomerEmail(sub.customerId));
+  if (!email) {
+    console.error("process-webhook: no email resolved for trialing subscription", sub.id, "— lifecycle sequence not sent.");
+    return;
+  }
+
+  try {
+    await scheduleLifecycleSequence({ to: email, niche: null });
+  } catch (error) {
+    console.error("process-webhook: scheduleLifecycleSequence failed for", sub.id, "—", error);
+  }
+}
+
+/** ensureCustomerHasEmail (above) has already run by the time this is
+ *  called, so the customers row is populated if an email was resolvable at
+ *  all — this just reads back what it wrote. */
+async function lookUpCustomerEmail(customerId: string | null): Promise<string | null> {
+  if (!customerId) return null;
+  const supabase = createInternalClient();
+  const { data } = await supabase.from("customers").select("email").eq("customer_id", customerId).maybeSingle();
+  return data?.email ?? null;
 }
 
 async function upsertTransaction(event: TransactionCompletedEvent) {

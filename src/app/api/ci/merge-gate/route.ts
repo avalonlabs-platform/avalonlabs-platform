@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { agents } from "@/constants/agents";
+import { scheduleActionOnboardingSequence, type ActionScanStatus } from "@/lib/email/lifecycle";
 
 /**
  * Backs the "Agent Code Merge Gate" GitHub Action (github-action/agent-code-
@@ -19,6 +20,15 @@ import { agents } from "@/constants/agents";
  * previews — the deeper Key Findings/Recommendations stay behind the
  * "unlock the full diagnostic" link this route returns, not because this
  * endpoint hides them, but because it never generates them here at all.
+ *
+ * Optionally also the trigger point for the Action's Pro-conversion loop
+ * (Revenue Recovery Track B, distribution pillar 1): if the caller opted
+ * into the Action's `notify-email` input, and this is the first call this
+ * instance has seen for that repo, kicks off scheduleActionOnboardingSequence
+ * (src/lib/email/lifecycle.ts) — a Day 1/4/7 email sequence, not anything
+ * gating the scan response itself. See isFirstScanForRepo below for why
+ * "first call for this repo" is the closest available proxy for "installed"
+ * a plain composite Action can offer.
  */
 
 const MAX_DIFF_LENGTH = 12_000; // characters; see truncateDiff()
@@ -43,6 +53,27 @@ function checkRateLimit(key: string): boolean {
   }
   if (entry.count >= RATE_LIMIT_MAX_REQUESTS) return false;
   entry.count += 1;
+  return true;
+}
+
+/**
+ * Best-effort "have we seen this repo before" tracker for the Action
+ * onboarding email sequence (Revenue Recovery Track B, distribution pillar
+ * 1's conversion loop — see scheduleActionOnboardingSequence in
+ * src/lib/email/lifecycle.ts). A plain composite GitHub Action has no
+ * "installed" webhook the way a GitHub App does, so "first call we've seen
+ * for this repoFullName" is the closest available proxy — same in-memory,
+ * same-instance-only tradeoff as rateLimitMap above: this resets on every
+ * cold start / redeploy / new serverless instance, so a repo can trigger
+ * the "first scan" email more than once in practice. Good enough for v1;
+ * a real fix needs a persistent per-repo table, which is a schema decision
+ * (see the dedupe/cancellation note in lifecycle.ts), not more code here.
+ */
+const seenRepos = new Set<string>();
+
+function isFirstScanForRepo(repoFullName: string): boolean {
+  if (seenRepos.has(repoFullName)) return false;
+  seenRepos.add(repoFullName);
   return true;
 }
 
@@ -94,12 +125,27 @@ interface MergeGateRequestBody {
   diff?: string;
   repoFullName?: string;
   prNumber?: number;
+  /** Opt-in — set only when the caller's workflow configured the Action's
+   *  `notify-email` input (see action.yml). Absent on the vast majority of
+   *  calls; when present AND this is the first call seen for repoFullName,
+   *  triggers the Day 1/4/7 onboarding sequence below. */
+  notifyEmail?: string;
+  /** Count of findings from the Action's own local heuristic scan on this
+   *  same run — informational only, used to personalize the Day 1 email if
+   *  one gets sent. Not validated beyond being a finite number; a bad value
+   *  just makes that one email's count look wrong, nothing more. */
+  localFindingsCount?: number;
 }
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: Request) {
   const body: MergeGateRequestBody | null = await request.json().catch(() => null);
   const diff = typeof body?.diff === "string" ? body.diff.trim() : "";
   const repoFullName = typeof body?.repoFullName === "string" ? body.repoFullName : null;
+  const notifyEmail =
+    typeof body?.notifyEmail === "string" && EMAIL_PATTERN.test(body.notifyEmail) ? body.notifyEmail : null;
+  const localFindingsCount = typeof body?.localFindingsCount === "number" ? body.localFindingsCount : undefined;
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (!checkRateLimit(repoFullName ?? ip)) {
@@ -140,8 +186,26 @@ export async function POST(request: Request) {
     const rawText = textBlock && textBlock.type === "text" ? textBlock.text : "";
 
     const statusMatch = /\[STATUS:\s*(PASS|WARNING|CRITICAL|INFO)\]/i.exec(rawText);
-    const status = (statusMatch?.[1].toUpperCase() ?? "INFO") as "PASS" | "WARNING" | "CRITICAL" | "INFO";
+    const status = (statusMatch?.[1].toUpperCase() ?? "INFO") as ActionScanStatus;
     const summary = rawText.replace(/\[STATUS:\s*(PASS|WARNING|CRITICAL|INFO)\]/i, "").trim();
+
+    // Opt-in only (see MergeGateRequestBody.notifyEmail) and only on this
+    // repo's first scan (see isFirstScanForRepo) — the vast majority of
+    // calls hit neither condition and skip this entirely. Awaited so it
+    // completes before the serverless function returns, but failure here
+    // never fails the actual scan response the CI run is waiting on.
+    if (notifyEmail && repoFullName && isFirstScanForRepo(repoFullName)) {
+      try {
+        await scheduleActionOnboardingSequence({
+          to: notifyEmail,
+          repoFullName,
+          firstScanStatus: status,
+          firstScanLocalFindings: localFindingsCount,
+        });
+      } catch (error) {
+        console.error("CI merge-gate: scheduleActionOnboardingSequence failed for", repoFullName, "—", error);
+      }
+    }
 
     return Response.json({ status, summary, diffTruncated: truncated });
   } catch (error) {

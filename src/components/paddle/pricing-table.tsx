@@ -19,14 +19,14 @@ function MicroserviceBuyButton({ agentId, onBuy }: { agentId: string; onBuy: () 
   const access = useAgentAccess(agentId);
 
   if (access === "loading") {
-    return <div className="ml-4 h-9 w-28 shrink-0 animate-pulse rounded-full bg-white/5" />;
+    return <div className="h-9 w-28 shrink-0 animate-pulse rounded-full bg-white/5" />;
   }
 
   if (access === "has-access") {
     return (
       <Link
         href={`/dashboard?agent=${agentId}`}
-        className="ml-4 flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20"
+        className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20"
       >
         <span aria-hidden>✓</span> Already Unlocked
       </Link>
@@ -37,9 +37,9 @@ function MicroserviceBuyButton({ agentId, onBuy }: { agentId: string; onBuy: () 
     <button
       type="button"
       onClick={onBuy}
-      className="ml-4 shrink-0 rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white/90 transition-colors hover:bg-white/5"
+      className="shrink-0 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
     >
-      Buy once
+      Get my report
     </button>
   );
 }
@@ -92,15 +92,61 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
         >
           <h2 className="text-sm font-semibold tracking-wide text-indigo-400 uppercase">Pricing</h2>
           <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Plans for individuals, businesses, and enterprises
+            Start with one problem. One flat price.
           </p>
           <p className="mt-4 text-lg text-white/60">
-            Subscribe for ongoing access to AI Agents, or buy a SaaS Microservice once.
-            Debit/Credit Card, PayPal, Google Pay — all handled securely through Paddle.
+            Buy a one-time Specialist Report — no subscription, no commitment. Need it running on
+            every problem, ongoing? Subscribe below instead. Debit/Credit Card, PayPal, Google
+            Pay — all handled securely through Paddle.
           </p>
         </motion.div>
 
-        <div className="mt-10 flex justify-center">
+        {/* One-time Specialist Reports — Track B's primary paid CTA, moved
+            above the subscription tiers (previously rendered last, under the
+            heading "One-time SaaS Microservices"). Cold, no-trust traffic
+            gets a flat price for the one problem they came for, with no
+            recurring-commitment decision in the way. */}
+        <div className="mt-12">
+          <span className="mx-auto mb-3 block w-fit rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-3 py-1 text-center text-xs font-semibold text-white">
+            Start here
+          </span>
+          <h3 className="text-center text-xl font-semibold text-white">One-Time Specialist Reports</h3>
+          <p className="mx-auto mt-2 max-w-xl text-center text-sm text-white/60">
+            Paste your problem, get a full expert analysis back in minutes — pay once, keep it forever.
+          </p>
+          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {microserviceProducts.map((product, i) => {
+              const formatted = prices[product.priceId];
+              return (
+                <motion.div
+                  key={product.name}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: i * 0.08 }}
+                  className="flex flex-col rounded-xl border border-white/10 bg-white/[0.02] p-6 backdrop-blur-xl transition-colors hover:border-white/20"
+                >
+                  <p className="text-xs font-medium tracking-wide text-glow-cyan uppercase">{product.tagline}</p>
+                  <p className="mt-2 text-lg font-semibold text-white">{product.name}</p>
+                  <p className="mt-1 text-sm text-white/60">{product.description}</p>
+                  <div className="mt-4 flex flex-1 items-end justify-between gap-4">
+                    <p className="text-2xl font-bold text-white">{loading || !formatted ? "…" : formatted}</p>
+                    <MicroserviceBuyButton agentId={product.agentId} onBuy={() => openCheckout(product.priceId)} />
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mx-auto mt-20 max-w-2xl text-center">
+          <h3 className="text-xl font-semibold text-white">Need it running continuously?</h3>
+          <p className="mt-2 text-sm text-white/60">
+            Subscribe for unlimited runs across every specialist tool, plus team seats and priority
+            support.
+          </p>
+        </div>
+
+        <div className="mt-8 flex justify-center">
           <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
             {(["month", "year"] as Frequency[]).map((f) => (
               <button
@@ -187,33 +233,6 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
               </motion.div>
             );
           })}
-        </div>
-
-        <div className="mt-20">
-          <h3 className="text-center text-xl font-semibold text-white">One-time SaaS Microservices</h3>
-          <p className="mx-auto mt-2 max-w-xl text-center text-sm text-white/60">
-            No subscription needed — pay once for a focused automated AI task.
-          </p>
-          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
-            {microserviceProducts.map((product, i) => (
-              <motion.div
-                key={product.name}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: i * 0.08 }}
-                className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] p-6 backdrop-blur-xl transition-colors hover:border-white/20"
-              >
-                <div>
-                  <p className="font-medium text-white">{product.name}</p>
-                  <p className="mt-1 text-sm text-white/60">{product.description}</p>
-                </div>
-                <MicroserviceBuyButton
-                  agentId={product.agentId}
-                  onBuy={() => openCheckout(product.priceId)}
-                />
-              </motion.div>
-            ))}
-          </div>
         </div>
       </div>
     </section>

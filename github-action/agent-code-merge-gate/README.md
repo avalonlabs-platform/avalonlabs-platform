@@ -1,5 +1,7 @@
 # AvalonLabs Agent Code Merge Gate
 
+**Status:** extracted and live at [avalonlabs-platform/agent-code-merge-gate](https://github.com/avalonlabs-platform/agent-code-merge-gate), tagged `v1.0.0`. Not yet appearing in Marketplace *search* — that still needs the manual "Publish this Action to the Marketplace" step described below.
+
 Checks a pull request's diff for the two failure modes most likely to slip
 through review when a PR is majority AI-agent-generated:
 
@@ -16,7 +18,7 @@ heuristic scan, and a link to unlock the full diagnostic on AvalonLabs.
 ## Quick start
 
 ```yaml
-- uses: avalonlabs/agent-code-merge-gate@v1
+- uses: avalonlabs-platform/agent-code-merge-gate@v1.0.0
   with:
     github-token: ${{ github.token }}
 ```
@@ -35,15 +37,26 @@ jobs:
   merge-gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: avalonlabs/agent-code-merge-gate@v1
+      - uses: avalonlabs-platform/agent-code-merge-gate@v1.0.0
         with:
           github-token: ${{ github.token }}
 ```
 
 `github-token` defaults to `${{ github.token }}` already, so the 3-line
 snippet above is only there to make the token explicit — the step alone
-(`- uses: avalonlabs/agent-code-merge-gate@v1`) is functionally complete on
-its own once the workflow's `permissions` are set.
+(`- uses: avalonlabs-platform/agent-code-merge-gate@v1.0.0`) is functionally
+complete on its own once the workflow's `permissions` are set.
+
+**On the `@v1.0.0` pin:** only the exact `v1.0.0` tag exists right now, so
+that's what's pinned above rather than the usual GitHub Actions convention
+of a moving `@v1` major tag (the pattern `actions/checkout@v4` uses, which
+auto-updates through patch/minor releases). To offer that convenience later,
+push a moving tag once and repoint it on every future `v1.x.y` release:
+```
+git tag -f v1 v1.0.0
+git push -f https://github.com/avalonlabs-platform/agent-code-merge-gate.git v1
+```
+Until that's done, consumers should pin the exact version (`@v1.0.0`), not `@v1` — that ref doesn't exist yet and would fail to resolve.
 
 ## What the comment looks like
 
@@ -117,32 +130,29 @@ common SQL/ORM query shapes; a codebase that doesn't match those patterns
 will get fewer (not more false) findings. Treat every finding as "worth a
 second look," not a verdict.
 
-## Publishing this to the GitHub Marketplace
+## Getting listed on the GitHub Marketplace
 
-GitHub only auto-lists an action on the Marketplace when its `action.yml`
-lives at the **root** of a public repository — a subdirectory action.yml
-(like this one, inside a larger platform monorepo) can still be referenced
-directly as `your-org/your-monorepo/github-action/agent-code-merge-gate@v1`
-and used by anyone, but it will not appear in Marketplace search or get a
-Marketplace listing page. To actually publish it:
+The repo itself now satisfies GitHub's structural requirement for
+Marketplace eligibility — a public repo with `action.yml` at its root, and a
+tagged release (`v1.0.0`). What's still manual, by GitHub's own design (no
+API/CLI path exists for either):
 
-1. Create a new, dedicated public repository (e.g. `avalonlabs/agent-code-merge-gate`).
-2. Copy this folder's contents (`action.yml`, `index.js`, `lib/`,
-   `package.json`, this `README.md`) to that repository's root.
-3. Commit `node_modules/` too, **or** add a build step that bundles
-   dependencies into a single file (e.g. with `@vercel/ncc`) — this repo's
-   composite `action.yml` runs `npm install` at execution time instead,
-   which works for direct `uses:` references but is generally discouraged
-   for a Marketplace-published action (it depends on npm registry
-   availability at every consumer's CI run, not just at publish time).
-4. Tag a release (`v1`, plus a `v1` moving major tag pointing at the latest
-   `v1.x.y` — the GitHub Actions convention).
-5. Use the repository's "Publish this Action to the Marketplace" flow via
-   the release UI, which requires two-factor authentication on the account.
-
-Until that extraction happens, treat the `uses:` line above as needing your
-actual org/repo path once you know where this will live — `avalonlabs/agent-code-merge-gate@v1`
-is a placeholder.
+1. **Decide on `node_modules`.** This Action currently runs `npm install` at
+   every consumer's CI execution (see `action.yml`'s "Install action
+   dependencies" step) rather than shipping pre-bundled. That works fine for
+   a direct `uses:` reference, but a widely-used Marketplace action is
+   usually bundled with something like `@vercel/ncc` into a single file (or
+   ships `node_modules` committed) so it doesn't depend on npm registry
+   uptime at every consumer's run, not just at publish time. Not a blocker
+   to functioning today — worth doing before pushing for wide adoption.
+2. **Publish through the release UI.** On the repo's GitHub page: Releases →
+   Draft a new release → pick the `v1.0.0` tag → check "Publish this Action
+   to the GitHub Marketplace" → follow the 2FA re-verification prompt. This
+   is the one step that only exists as a manual, human-confirmed action in
+   GitHub's UI — there's no `gh` subcommand or API call for it.
+3. **Optional but conventional:** push the moving `v1` tag described above,
+   so consumers can write `@v1` and get future `v1.x.y` patches
+   automatically instead of pinning the exact version.
 
 ## Development
 

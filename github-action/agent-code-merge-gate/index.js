@@ -29,7 +29,7 @@ function badgeMarkdownUrl(status) {
  *  Summary. Never throws — a network failure, timeout, or non-200 response
  *  all resolve to `null`, so the caller always has local heuristics to fall
  *  back on instead of failing the whole Action over an optional enrichment. */
-async function callAvalonLabs(endpoint, diff, repoFullName, prNumber) {
+async function callAvalonLabs(endpoint, diff, repoFullName, prNumber, notifyEmail, localFindingsCount) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
@@ -37,7 +37,13 @@ async function callAvalonLabs(endpoint, diff, repoFullName, prNumber) {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ diff, repoFullName, prNumber }),
+      body: JSON.stringify({
+        diff,
+        repoFullName,
+        prNumber,
+        notifyEmail: notifyEmail || undefined,
+        localFindingsCount,
+      }),
       signal: controller.signal,
     });
 
@@ -72,12 +78,21 @@ function renderFindingsList(findings, headSha, repoUrl) {
     .join("\n");
 }
 
-function buildCommentBody({ status, summary, diffTruncated, findings, headSha, repoUrl, unlockUrl }) {
+function buildCommentBody({ status, summary, diffTruncated, findings, headSha, repoUrl, unlockUrl, proUrl }) {
   const badge = `![AvalonLabs Merge Gate](${badgeMarkdownUrl(status)})`;
   const summarySection =
     status === "LOCAL_ONLY"
       ? "_AvalonLabs' AI-backed Executive Summary was unavailable for this run — showing local heuristic findings only._"
       : summary || "_No summary text returned._";
+
+  // Deliberately one short, plain-text line — not a badge, not bolded, not
+  // repeated per-finding. This runs on every PR of every repo that installs
+  // the free Action, so it has to read as a footer aside, not a paywall;
+  // see the note in scanTracker.record() in src/app/api/ci/merge-gate for
+  // the (opt-in, email-based) version of this nudge that isn't tied to
+  // rendering a comment at all.
+  const proNudge = `_This scan runs the free local heuristics + one AI check. [AvalonLabs Pro](${proUrl}) runs the ` +
+    `full specialist agent suite across your whole repo, with a team dashboard and history — no CI wiring required._`;
 
   // Each array entry is one markdown "block" (heading, paragraph, or list) —
   // joined with a blank line between blocks so GitHub renders headings and
@@ -89,6 +104,7 @@ function buildCommentBody({ status, summary, diffTruncated, findings, headSha, r
     diffTruncated ? "_Note: this diff was large enough that AvalonLabs analyzed a truncated version (start + end)._" : null,
     `**Local scan** _(offline heuristics — unindexed-query and auth-regression patterns; approximate, not exhaustive)_\n${renderFindingsList(findings, headSha, repoUrl)}`,
     `[Unlock the full diagnostic on AvalonLabs →](${unlockUrl})`,
+    proNudge,
   ];
 
   return blocks.filter(Boolean).join("\n\n");
@@ -126,6 +142,7 @@ async function run() {
   const endpoint = process.env.AVALONLABS_ENDPOINT || "https://www.avalonlabs-platform.com/api/ci/merge-gate";
   const failOnCritical = process.env.FAIL_ON_CRITICAL === "true";
   const commentOnPr = process.env.COMMENT_ON_PR !== "false";
+  const notifyEmail = (process.env.NOTIFY_EMAIL || "").trim() || null;
 
   const octokit = github.getOctokit(token);
   const { owner, repo } = github.context.repo;
@@ -149,12 +166,13 @@ async function run() {
       `Diff is ${Buffer.byteLength(diff, "utf8")} bytes, over the ${MAX_DIFF_BYTES_FOR_API_CALL}-byte client-side cap — skipping the AvalonLabs API call for this run and using local heuristics only.`
     );
   } else {
-    apiResult = await callAvalonLabs(endpoint, diff, repoFullName, prNumber);
+    apiResult = await callAvalonLabs(endpoint, diff, repoFullName, prNumber, notifyEmail, findings.length);
   }
 
   const status = apiResult?.status ?? "LOCAL_ONLY";
   const summary = apiResult?.summary ?? "";
   const unlockUrl = `https://www.avalonlabs-platform.com/tools/security-auditor?utm_source=github_action&utm_medium=pr_comment&utm_campaign=agent_code_merge_gate&repo=${encodeURIComponent(repoFullName)}`;
+  const proUrl = `https://www.avalonlabs-platform.com/#pricing?utm_source=github_action&utm_medium=pr_comment&utm_campaign=agent_code_merge_gate_pro&repo=${encodeURIComponent(repoFullName)}`;
 
   if (commentOnPr) {
     const body = buildCommentBody({
@@ -165,6 +183,7 @@ async function run() {
       headSha: pullRequest.head?.sha,
       repoUrl: pullRequest.base?.repo?.html_url ?? `https://github.com/${repoFullName}`,
       unlockUrl,
+      proUrl,
     });
     await upsertComment(octokit, owner, repo, prNumber, body);
     core.info("Posted/updated PR comment.");

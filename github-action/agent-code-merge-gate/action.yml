@@ -41,6 +41,15 @@ inputs:
       from `status` and `summary` instead.
     required: false
     default: "true"
+  notify-email:
+    description: >-
+      Optional. If set, AvalonLabs sends a short 3-part onboarding email
+      sequence (day 1, day 4, day 7) covering what this first scan found and
+      what the Pro tier's full specialist agent suite + team dashboard add
+      on top of it. Entirely opt-in — omit this and nothing is captured or
+      emailed. Only triggers once, on this repository's first scan.
+    required: false
+    default: ""
 
 outputs:
   status:
@@ -75,4 +84,5 @@ runs:
         AVALONLABS_ENDPOINT: ${{ inputs.avalonlabs-endpoint }}
         FAIL_ON_CRITICAL: ${{ inputs.fail-on-critical }}
         COMMENT_ON_PR: ${{ inputs.comment-on-pr }}
+        NOTIFY_EMAIL: ${{ inputs.notify-email }}
       run: node "${{ github.action_path }}/index.js"

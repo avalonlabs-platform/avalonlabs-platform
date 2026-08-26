@@ -2,13 +2,19 @@
 
 import { useEffect, useState } from "react";
 import type { Paddle, PricePreviewParams, PricePreviewResponse } from "@paddle/paddle-js";
-import { pricingTiers } from "@/constants/pricing-tiers";
+import { pricingTiers, microserviceProducts } from "@/constants/pricing-tiers";
 
 export type PaddlePrices = Record<string, string>;
 
+// Previously only the subscription tiers' price ids were previewed here, so
+// the one-time Specialist Report cards had no formatted amount to show at
+// all — a visitor had to click "Buy once" before finding out what it cost.
+// Track B leads with these one-time prices (pricing-table.tsx), so they need
+// to resolve too.
 function getLineItems(): PricePreviewParams["items"] {
-  return pricingTiers
-    .flatMap((tier) => [tier.priceId.month, tier.priceId.year])
+  const tierPriceIds = pricingTiers.flatMap((tier) => [tier.priceId.month, tier.priceId.year]);
+  const microservicePriceIds = microserviceProducts.map((product) => product.priceId);
+  return [...tierPriceIds, ...microservicePriceIds]
     .filter(Boolean)
     .map((priceId) => ({ priceId, quantity: 1 }));
 }
@@ -20,12 +26,14 @@ function getPriceAmounts(prices: PricePreviewResponse): PaddlePrices {
   }, {});
 }
 
-// pricingTiers is static config, so the line items never change at runtime —
-// computing this once avoids a new array reference (and effect re-run) every render.
+// pricingTiers/microserviceProducts are static config, so the line items
+// never change at runtime — computing this once avoids a new array reference
+// (and effect re-run) every render.
 const lineItems = getLineItems();
 
 /**
- * Fetches localized, tax-inclusive prices for every tier at once.
+ * Fetches localized, tax-inclusive prices for every subscription tier and
+ * one-time Specialist Report at once.
  * `country` of "OTHERS" means "let Paddle infer the market from IP" — see
  * the pricing-pages skill for why that sentinel must not be sent as an address.
  */
