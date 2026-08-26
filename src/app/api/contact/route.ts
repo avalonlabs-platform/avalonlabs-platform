@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sendEmail } from "@/lib/email/provider";
+import { sendEmail, buildFromAddress } from "@/lib/email/provider";
 import { siteConfig } from "@/lib/site-config";
 
 interface ContactPayload {
@@ -51,15 +51,16 @@ export async function POST(request: Request) {
   // Goes through the shared src/lib/email/provider.ts abstraction (Revenue
   // Recovery Track B step 3) instead of instantiating Resend directly, so
   // this and the lifecycle nurture sequence (src/lib/email/lifecycle.ts)
-  // share one place to swap providers via EMAIL_PROVIDER. Still Resend, same
-  // shared unverified-domain sender as before. One deliberate behavior
-  // change: a missing RESEND_API_KEY now surfaces as this function's generic
-  // 502 "Failed to send message" instead of the previous dedicated 500
-  // "Contact form is not configured" — the specific reason is still logged
-  // server-side (see provider.ts's own console.error), just no longer
-  // distinguished in the HTTP response.
+  // share one place to swap providers via EMAIL_PROVIDER, and one place
+  // (buildFromAddress) to resolve the sender once RESEND_FROM_EMAIL points
+  // at a verified domain instead of Resend's sandbox address. One deliberate
+  // behavior change: a missing RESEND_API_KEY now surfaces as this
+  // function's generic 502 "Failed to send message" instead of the previous
+  // dedicated 500 "Contact form is not configured" — the specific reason is
+  // still logged server-side (see provider.ts's own console.error), just no
+  // longer distinguished in the HTTP response.
   const result = await sendEmail({
-    from: "AvalonLabs Contact Form <onboarding@resend.dev>",
+    from: buildFromAddress("AvalonLabs Contact Form"),
     to: siteConfig.supportEmail,
     replyTo: email,
     subject: `New contact form message from ${name}`,

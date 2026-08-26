@@ -8,7 +8,7 @@
  * the {{unlockUrl}}-style placeholders with real links before this ever
  * sends to a real visitor.
  */
-import { sendEmail } from "@/lib/email/provider";
+import { sendEmail, buildFromAddress } from "@/lib/email/provider";
 import { siteConfig } from "@/lib/site-config";
 
 export type LifecycleNiche = "agent-code-merge-gate" | "postgres-bill-killer" | "handoff-verification";
@@ -233,7 +233,7 @@ function actionSubjectAndBody(
  * dedupe/cancellation store yet).
  */
 export async function scheduleActionOnboardingSequence(input: ActionOnboardingInput) {
-  const from = `${siteConfig.shortName} <onboarding@resend.dev>`;
+  const from = buildFromAddress(siteConfig.shortName);
   const days: Array<1 | 4 | 7> = [1, 4, 7];
 
   const results = await Promise.allSettled(
@@ -260,7 +260,7 @@ export async function scheduleActionOnboardingSequence(input: ActionOnboardingIn
 }
 
 export async function scheduleLifecycleSequence(input: LifecycleEmailInput) {
-  const from = `${siteConfig.shortName} <onboarding@resend.dev>`; // same unverified-domain sender as /api/contact today
+  const from = buildFromAddress(siteConfig.shortName); // same sender resolution as /api/contact and the Action onboarding sequence
   const days: Array<0 | 2 | 4 | 6> = [0, 2, 4, 6];
 
   const results = await Promise.allSettled(

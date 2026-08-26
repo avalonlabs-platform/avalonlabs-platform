@@ -12,8 +12,34 @@
  * someone actually adds the `postmark` package and a real implementation —
  * intentionally not a silent no-op, so a misconfigured EMAIL_PROVIDER value
  * is caught immediately instead of quietly dropping mail.
+ *
+ * Sender address: every call site used to hardcode the literal
+ * `onboarding@resend.dev` (Resend's shared sandbox domain, which can only
+ * deliver to the email address on the Resend account itself — see
+ * RESEND_FROM_EMAIL below). buildFromAddress() centralizes that so switching
+ * to a verified domain is one env var, not a find-and-replace across
+ * lifecycle.ts and contact/route.ts.
  */
 import { Resend } from "resend";
+
+/** Sandbox sender — works today with zero setup, but Resend restricts it to
+ *  delivering only to the email address tied to the Resend account. Not a
+ *  real "from" for mail going to arbitrary recipients (e.g. the Action
+ *  onboarding sequence, or contact-form replies to a support address). */
+const DEFAULT_FROM_EMAIL = "onboarding@resend.dev";
+
+/**
+ * Builds a `"Display Name <address>"` sender string, using the verified
+ * domain address from RESEND_FROM_EMAIL when it's set, falling back to
+ * Resend's `onboarding@resend.dev` sandbox address otherwise. Every send
+ * site should go through this instead of hardcoding an address directly, so
+ * verifying a real domain in Resend and setting RESEND_FROM_EMAIL is enough
+ * to flip every outbound email over — no code change needed.
+ */
+export function buildFromAddress(displayName: string): string {
+  const address = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_EMAIL;
+  return `${displayName} <${address}>`;
+}
 
 export interface SendEmailParams {
   to: string;
