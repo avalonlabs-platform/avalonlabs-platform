@@ -1,0 +1,12 @@
+{
+  "name": "agent-code-merge-gate",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AvalonLabs Agent Code Merge Gate — GitHub Action runner",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/github": "^6.0.1"
+  }
+}

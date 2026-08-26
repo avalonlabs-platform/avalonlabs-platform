@@ -1,0 +1,78 @@
+name: "AvalonLabs Agent Code Merge Gate"
+description: >-
+  Checks a pull request's diff for auth/authorization regressions and
+  query-indexing risk before merge — the two failure modes most likely to
+  slip through review when a PR is majority AI-agent-generated. Posts one
+  updating PR comment with a status badge, an AI-generated Executive
+  Summary, and a link to unlock the full findings on AvalonLabs.
+author: "AvalonLabs"
+
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  github-token:
+    description: >-
+      Token used to read the PR diff and post/update the comment. The
+      default `${{ github.token }}` is almost always correct — it only needs
+      `pull-requests: write` and `contents: read` on the calling workflow.
+    required: false
+    default: ${{ github.token }}
+  avalonlabs-endpoint:
+    description: >-
+      AvalonLabs merge-gate API endpoint. Override only if you're pointed at
+      a staging/self-hosted deployment.
+    required: false
+    default: "https://www.avalonlabs-platform.com/api/ci/merge-gate"
+  fail-on-critical:
+    description: >-
+      When "true", the action exits non-zero (failing the check) if the
+      AvalonLabs analysis returns CRITICAL. Defaults to "false" — v1 posts a
+      comment and annotates the run, but doesn't block merges, since that's
+      a bigger commitment a team should opt into deliberately rather than
+      have imposed by installing the Action.
+    required: false
+    default: "false"
+  comment-on-pr:
+    description: >-
+      When "false", skips posting/updating the PR comment and only sets
+      outputs — useful if you want to build your own comment/notification
+      from `status` and `summary` instead.
+    required: false
+    default: "true"
+
+outputs:
+  status:
+    description: "PASS, INFO, WARNING, or CRITICAL, or LOCAL_ONLY if the AvalonLabs call failed and only local heuristics ran."
+    value: ${{ steps.run-merge-gate.outputs.status }}
+  summary:
+    description: "The Executive Summary text (empty if only local heuristics ran)."
+    value: ${{ steps.run-merge-gate.outputs.summary }}
+  local-findings-count:
+    description: "Count of findings from the local, offline heuristic scan (unindexed-query and auth-regression checks)."
+    value: ${{ steps.run-merge-gate.outputs.local-findings-count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install action dependencies
+      shell: bash
+      # Installs into the action's own checked-out copy (github.action_path),
+      # not the consumer repo — never touches the caller's package.json/lockfile.
+      run: npm install --omit=dev --no-audit --no-fund --prefix "${{ github.action_path }}"
+
+    - name: Run Agent Code Merge Gate
+      id: run-merge-gate
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        AVALONLABS_ENDPOINT: ${{ inputs.avalonlabs-endpoint }}
+        FAIL_ON_CRITICAL: ${{ inputs.fail-on-critical }}
+        COMMENT_ON_PR: ${{ inputs.comment-on-pr }}
+      run: node "${{ github.action_path }}/index.js"
