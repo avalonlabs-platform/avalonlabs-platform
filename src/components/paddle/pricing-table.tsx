@@ -1,26 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePaddle } from "@/hooks/use-paddle";
 import { usePaddlePrices } from "@/hooks/use-paddle-prices";
 import { useAgentAccess } from "@/hooks/use-agent-access";
 import { useSupabaseUser } from "@/hooks/use-supabase-user";
-import { pricingTiers, microserviceProducts } from "@/constants/pricing-tiers";
+import { pricingTiers, microserviceProducts, MICROSERVICE_FALLBACK_PRICE } from "@/constants/pricing-tiers";
 import { siteConfig } from "@/lib/site-config";
 
 type Frequency = "month" | "year";
 
-/** Swaps to "Already Unlocked" once the signed-in user has this agent via an
- *  active subscription or a prior one-time purchase, instead of always
- *  offering a redundant "Buy once". */
-function MicroserviceBuyButton({ agentId, onBuy }: { agentId: string; onBuy: () => void }) {
+/** Renders the buy button immediately in every case — including while
+ *  useAgentAccess() is still resolving — instead of blocking on a loading
+ *  skeleton. Only swaps to "Already Unlocked" once access explicitly comes
+ *  back "has-access"; a signed-in owner who already has this report may see
+ *  "Get my report" for a beat before that swap happens, which is harmless
+ *  (clicking it just re-opens checkout for something they already own) and
+ *  a better tradeoff than every visitor staring at an empty gray box. */
+function MicroserviceBuyButton({
+  agentId,
+  onBuy,
+  pending,
+}: {
+  agentId: string;
+  onBuy: () => void;
+  pending: boolean;
+}) {
   const access = useAgentAccess(agentId);
-
-  if (access === "loading") {
-    return <div className="h-9 w-28 shrink-0 animate-pulse rounded-full bg-white/5" />;
-  }
 
   if (access === "has-access") {
     return (
@@ -37,9 +45,10 @@ function MicroserviceBuyButton({ agentId, onBuy }: { agentId: string; onBuy: () 
     <button
       type="button"
       onClick={onBuy}
-      className="shrink-0 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+      disabled={pending}
+      className="shrink-0 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
     >
-      Get my report
+      {pending ? "Opening…" : "Get my report"}
     </button>
   );
 }
@@ -50,11 +59,14 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
   const { prices, loading } = usePaddlePrices(paddle, country);
   const user = useSupabaseUser();
 
-  function openCheckout(priceId: string) {
-    if (!priceId) {
-      window.location.assign(`mailto:${siteConfig.supportEmail}?subject=Plan%20inquiry`);
-      return;
-    }
+  // Set when a checkout is clicked before Paddle.js has finished
+  // initializing (usePaddle() returns undefined until then). Previously
+  // `paddle?.Checkout.open(...)` optional-chained straight to a silent
+  // no-op on an early click — the effect below fires it the moment `paddle`
+  // becomes available instead, so the click isn't lost.
+  const [pendingPriceId, setPendingPriceId] = useState<string | null>(null);
+
+  function launchCheckout(priceId: string) {
     paddle?.Checkout.open({
       items: [{ priceId, quantity: 1 }],
       settings: { variant: "one-page" },
@@ -67,6 +79,28 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
         customData: { userId: user.id, userEmail: user.email },
       }),
     });
+  }
+
+  useEffect(() => {
+    if (!paddle || !pendingPriceId) return;
+    const priceId = pendingPriceId;
+    setPendingPriceId(null);
+    launchCheckout(priceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paddle, pendingPriceId]);
+
+  function openCheckout(priceId: string) {
+    if (!priceId) {
+      window.location.assign(`mailto:${siteConfig.supportEmail}?subject=Plan%20inquiry`);
+      return;
+    }
+    if (!paddle) {
+      // SDK still loading — queue it, the effect above fires it as soon as
+      // `paddle` is ready rather than silently dropping the click.
+      setPendingPriceId(priceId);
+      return;
+    }
+    launchCheckout(priceId);
   }
 
   return (
@@ -105,7 +139,14 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
             above the subscription tiers (previously rendered last, under the
             heading "One-time SaaS Microservices"). Cold, no-trust traffic
             gets a flat price for the one problem they came for, with no
-            recurring-commitment decision in the way. */}
+            recurring-commitment decision in the way.
+
+            Price and button both render immediately on first paint — the
+            price falls back to MICROSERVICE_FALLBACK_PRICE until Paddle's
+            live PricePreview() resolves (see usePaddlePrices), and the
+            button never blocks on useAgentAccess()'s loading state (see
+            MicroserviceBuyButton) — no skeleton, no layout shift once the
+            real values arrive since both occupy the same space throughout. */}
         <div className="mt-12">
           <span className="mx-auto mb-3 block w-fit rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-3 py-1 text-center text-xs font-semibold text-white">
             Start here
@@ -129,8 +170,12 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
                   <p className="mt-2 text-lg font-semibold text-white">{product.name}</p>
                   <p className="mt-1 text-sm text-white/60">{product.description}</p>
                   <div className="mt-4 flex flex-1 items-end justify-between gap-4">
-                    <p className="text-2xl font-bold text-white">{loading || !formatted ? "…" : formatted}</p>
-                    <MicroserviceBuyButton agentId={product.agentId} onBuy={() => openCheckout(product.priceId)} />
+                    <p className="text-2xl font-bold text-white">{formatted ?? MICROSERVICE_FALLBACK_PRICE}</p>
+                    <MicroserviceBuyButton
+                      agentId={product.agentId}
+                      onBuy={() => openCheckout(product.priceId)}
+                      pending={pendingPriceId === product.priceId}
+                    />
                   </div>
                 </motion.div>
               );

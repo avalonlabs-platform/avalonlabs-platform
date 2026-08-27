@@ -99,6 +99,18 @@ export interface MicroserviceProduct {
 }
 
 /**
+ * Static display price shown for every one-time Specialist Report until
+ * Paddle's live PricePreview() resolves (see usePaddlePrices / pricing-table.tsx).
+ * All four microservice products are currently priced identically in the
+ * Paddle catalog — this exists purely so the button/price can render on
+ * first paint instead of blocking on a network round trip. If any product's
+ * real Paddle price ever diverges from $25, update this constant (and this
+ * comment) to match, or the fallback will flash briefly before the live
+ * price swaps in.
+ */
+export const MICROSERVICE_FALLBACK_PRICE = "$25.00";
+
+/**
  * One-time purchase "Specialist Reports" — Track B's primary paid CTA.
  * Rendered above the subscription tiers in pricing-table.tsx (previously
  * below, under the generic heading "One-time SaaS Microservices"): cold,
