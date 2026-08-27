@@ -1,10 +1,10 @@
 name: "AvalonLabs Agent Code Merge Gate"
 description: >-
-  Checks a pull request's diff for auth/authorization regressions and
-  query-indexing risk before merge — the two failure modes most likely to
-  slip through review when a PR is majority AI-agent-generated. Posts one
-  updating PR comment with a status badge, an AI-generated Executive
-  Summary, and a link to unlock the full findings on AvalonLabs.
+  Catches the two failure modes most likely to slip through review when a
+  pull request is majority AI-agent-generated: auth checks silently dropped
+  by Cursor, Copilot, or Devin, and unindexed queries added without a
+  second look. Posts one PR comment with an AI Executive Summary — free,
+  non-blocking, 3-line YAML setup, no dashboard required to see results.
 author: "AvalonLabs"
 
 branding:
