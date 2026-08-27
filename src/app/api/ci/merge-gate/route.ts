@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createHash } from "node:crypto";
 import { agents } from "@/constants/agents";
 import { scheduleActionOnboardingSequence, type ActionScanStatus } from "@/lib/email/lifecycle";
+import { createInternalClient } from "@/lib/supabase/server-internal";
 
 /**
  * Backs the "Agent Code Merge Gate" GitHub Action (github-action/agent-code-
@@ -32,9 +33,10 @@ import { scheduleActionOnboardingSequence, type ActionScanStatus } from "@/lib/e
  * a plain composite Action can offer.
  *
  * Growth Engine Playbook §5.1–5.2 (2026-08-27): also emits one structured
- * `merge_gate_scan` log line per scan attempt — see logMergeGateEvent below.
- * This is the single first-party signal for install/first-scan/retention/
- * opt-in-rate metrics; nothing else in the stack can see these repos.
+ * `merge_gate_scan` log line per scan attempt, persisted to Supabase (see
+ * logMergeGateEvent below) — the single first-party signal for install/
+ * first-scan/retention/opt-in-rate metrics; nothing else in the stack can
+ * see these repos.
  */
 
 const MAX_DIFF_LENGTH = 12_000; // characters; see truncateDiff()
@@ -124,15 +126,6 @@ function truncateDiff(diff: string): { text: string; truncated: boolean } {
  * not something this server-to-server CI call ever receives or could. Real
  * source attribution has to come from that pageview's own analytics, not
  * from here — left null rather than guessed.
- *
- * No Supabase sink: this route doesn't currently import a Supabase client,
- * and the playbook's own sinking instruction is conditional on one already
- * being imported here. Console-only for now. To add a sink later, use
- * `createInternalClient()` from "@/lib/supabase/server-internal" (the
- * service-role client — this route has no logged-in user, so
- * "@/lib/supabase/server"'s cookie-based client is the wrong one) and
- * insert `payload` into an events table inside the same try/catch below,
- * still without awaiting it ahead of the scan response.
  */
 type DiffSizeBucket = "<50kb" | "50-200kb" | "skipped-too-large";
 
@@ -156,19 +149,76 @@ interface MergeGateLogEventInput {
   utm_source: string | null;
 }
 
-function logMergeGateEvent(input: MergeGateLogEventInput) {
-  // Deliberately not awaited by callers and never allowed to throw — this
-  // is telemetry, not part of the scan's response contract. A failure here
-  // must never delay or fail the CI run waiting on this endpoint.
+// Supabase sink budget — separate from, and far inside, the scan's overall
+// 25s contract. Awaited (bounded by this timeout) rather than fired-and-
+// forgotten: an unawaited promise in a serverless route handler can be
+// frozen or torn down the instant the response is sent, which would make
+// this sink silently lossy in exactly the cases (cold start, function
+// recycled under load) most correlated with real traffic spikes. Bounding
+// it here means the write either completes or is deterministically
+// abandoned before the response goes out — never a source of truth for
+// "the write happened" beyond what it actually confirms.
+const SUPABASE_LOG_TIMEOUT_MS = 3_000;
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
+/**
+ * Logs one `merge_gate_scan` event to stdout (always) and best-effort
+ * persists it to Supabase's `merge_gate_events` table (when
+ * SUPABASE_SERVICE_ROLE_KEY is configured). This function itself can never
+ * throw and is always awaited by its callers below with the sink's own
+ * SUPABASE_LOG_TIMEOUT_MS bound — worst case this adds ~3s to a scan
+ * response, comfortably inside the route's 25s contract even stacked on
+ * top of the Anthropic call. A Supabase outage, a missing service-role key,
+ * a schema mismatch, or a timeout all fall into the same catch block below:
+ * console.error and move on. This is telemetry, never a reason to fail or
+ * delay the CI run beyond that bound.
+ *
+ * Requires a `merge_gate_events` table in Supabase shaped like this
+ * function's payload (event text, timestamp timestamptz, repo_hash text,
+ * status text, is_first_scan_for_repo bool, notify_email_provided bool,
+ * diff_size_bucket text, utm_source text) — this route does not create it.
+ */
+async function logMergeGateEvent(input: MergeGateLogEventInput): Promise<void> {
+  const payload = {
+    event: "merge_gate_scan" as const,
+    timestamp: new Date().toISOString(),
+    ...input,
+  };
+  console.log(JSON.stringify(payload));
+
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    // Sink not configured for this environment — the console line above is
+    // still the record. Not an error condition, so no console.error here.
+    return;
+  }
+
   try {
-    const payload = {
-      event: "merge_gate_scan" as const,
-      timestamp: new Date().toISOString(),
-      ...input,
-    };
-    console.log(JSON.stringify(payload));
+    const supabase = createInternalClient();
+    const { error } = await withTimeout(
+      supabase.from("merge_gate_events").insert(payload),
+      SUPABASE_LOG_TIMEOUT_MS,
+      "Supabase merge_gate_events insert"
+    );
+    if (error) {
+      console.error("CI merge-gate: Supabase insert for merge_gate_scan failed —", error);
+    }
   } catch (error) {
-    console.error("CI merge-gate: failed to log merge_gate_scan event —", error);
+    console.error("CI merge-gate: Supabase sink for merge_gate_scan threw —", error);
   }
 }
 
@@ -292,7 +342,7 @@ export async function POST(request: Request) {
       }
     }
 
-    logMergeGateEvent({
+    await logMergeGateEvent({
       repo_hash: repoHash,
       status,
       is_first_scan_for_repo: isFirstScanForRepoLog,
@@ -305,7 +355,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("CI merge-gate: Anthropic call failed —", error);
 
-    logMergeGateEvent({
+    await logMergeGateEvent({
       repo_hash: repoHash,
       status: "LOCAL_ONLY",
       is_first_scan_for_repo: isFirstScanForRepoLog,
