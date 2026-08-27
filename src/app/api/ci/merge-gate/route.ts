@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { createHash } from "node:crypto";
 import { agents } from "@/constants/agents";
 import { scheduleActionOnboardingSequence, type ActionScanStatus } from "@/lib/email/lifecycle";
 
@@ -29,6 +30,11 @@ import { scheduleActionOnboardingSequence, type ActionScanStatus } from "@/lib/e
  * gating the scan response itself. See isFirstScanForRepo below for why
  * "first call for this repo" is the closest available proxy for "installed"
  * a plain composite Action can offer.
+ *
+ * Growth Engine Playbook §5.1–5.2 (2026-08-27): also emits one structured
+ * `merge_gate_scan` log line per scan attempt — see logMergeGateEvent below.
+ * This is the single first-party signal for install/first-scan/retention/
+ * opt-in-rate metrics; nothing else in the stack can see these repos.
  */
 
 const MAX_DIFF_LENGTH = 12_000; // characters; see truncateDiff()
@@ -93,6 +99,77 @@ function truncateDiff(diff: string): { text: string; truncated: boolean } {
     text: `${head}\n\n[... diff truncated for length — showing the first and last ${half} characters ...]\n\n${tail}`,
     truncated: true,
   };
+}
+
+/**
+ * Growth Engine Playbook §5.1–5.2 structured event logging.
+ *
+ * `repo_hash` — SHA-256 of the raw repoFullName, never the raw name itself,
+ * consistent with this route's own privacy claim (README: "AvalonLabs never
+ * sees more than the diff itself") — this event is about counting distinct
+ * installs/retention, not identifying which repos they are.
+ *
+ * `diff_size_bucket` — bucketed from the *raw* incoming diff length (before
+ * truncateDiff() truncates it for the model call), so size signal isn't
+ * lost once a diff crosses MAX_DIFF_LENGTH. "skipped-too-large" mirrors the
+ * Action's own >200KB client-side gate (github-action/agent-code-merge-gate,
+ * README "Resilience" section) — that gate lives in the Action's index.js,
+ * before it ever calls this route, so in practice this route shouldn't see
+ * a diff that large; the bucket exists here defensively for any caller that
+ * doesn't respect it (e.g. a direct API call bypassing the Action).
+ *
+ * `utm_source` — always null. UTM parameters are a pricing-page pageview
+ * concern (the README/PR-comment/DM links in the Growth Engine Playbook §4
+ * all carry `?utm_source=...` pointing at avalonlabs-platform.com/#pricing),
+ * not something this server-to-server CI call ever receives or could. Real
+ * source attribution has to come from that pageview's own analytics, not
+ * from here — left null rather than guessed.
+ *
+ * No Supabase sink: this route doesn't currently import a Supabase client,
+ * and the playbook's own sinking instruction is conditional on one already
+ * being imported here. Console-only for now. To add a sink later, use
+ * `createInternalClient()` from "@/lib/supabase/server-internal" (the
+ * service-role client — this route has no logged-in user, so
+ * "@/lib/supabase/server"'s cookie-based client is the wrong one) and
+ * insert `payload` into an events table inside the same try/catch below,
+ * still without awaiting it ahead of the scan response.
+ */
+type DiffSizeBucket = "<50kb" | "50-200kb" | "skipped-too-large";
+
+function hashRepoName(repoFullName: string | null): string | null {
+  if (!repoFullName) return null;
+  return createHash("sha256").update(repoFullName).digest("hex");
+}
+
+function getDiffSizeBucket(diffLength: number): DiffSizeBucket {
+  if (diffLength < 50_000) return "<50kb";
+  if (diffLength <= 200_000) return "50-200kb";
+  return "skipped-too-large";
+}
+
+interface MergeGateLogEventInput {
+  repo_hash: string | null;
+  status: ActionScanStatus | "LOCAL_ONLY";
+  is_first_scan_for_repo: boolean;
+  notify_email_provided: boolean;
+  diff_size_bucket: DiffSizeBucket;
+  utm_source: string | null;
+}
+
+function logMergeGateEvent(input: MergeGateLogEventInput) {
+  // Deliberately not awaited by callers and never allowed to throw — this
+  // is telemetry, not part of the scan's response contract. A failure here
+  // must never delay or fail the CI run waiting on this endpoint.
+  try {
+    const payload = {
+      event: "merge_gate_scan" as const,
+      timestamp: new Date().toISOString(),
+      ...input,
+    };
+    console.log(JSON.stringify(payload));
+  } catch (error) {
+    console.error("CI merge-gate: failed to log merge_gate_scan event —", error);
+  }
 }
 
 const MERGE_GATE_GUARD =
@@ -167,6 +244,14 @@ export async function POST(request: Request) {
   const { text: diffText, truncated } = truncateDiff(diff);
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  // Captured once, before the notify-email block below (which may itself
+  // call isFirstScanForRepo and mutate seenRepos) — a read-only snapshot,
+  // so this changes nothing about the existing onboarding-email trigger's
+  // behavior. Shared by both the success and failure log calls below.
+  const repoHash = hashRepoName(repoFullName);
+  const diffSizeBucket = getDiffSizeBucket(diff.length);
+  const isFirstScanForRepoLog = repoFullName ? !seenRepos.has(repoFullName) : false;
+
   try {
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5",
@@ -207,9 +292,28 @@ export async function POST(request: Request) {
       }
     }
 
+    logMergeGateEvent({
+      repo_hash: repoHash,
+      status,
+      is_first_scan_for_repo: isFirstScanForRepoLog,
+      notify_email_provided: Boolean(notifyEmail),
+      diff_size_bucket: diffSizeBucket,
+      utm_source: null,
+    });
+
     return Response.json({ status, summary, diffTruncated: truncated });
   } catch (error) {
     console.error("CI merge-gate: Anthropic call failed —", error);
+
+    logMergeGateEvent({
+      repo_hash: repoHash,
+      status: "LOCAL_ONLY",
+      is_first_scan_for_repo: isFirstScanForRepoLog,
+      notify_email_provided: Boolean(notifyEmail),
+      diff_size_bucket: diffSizeBucket,
+      utm_source: null,
+    });
+
     return Response.json({ error: "Something went wrong analyzing this diff." }, { status: 502 });
   }
 }
