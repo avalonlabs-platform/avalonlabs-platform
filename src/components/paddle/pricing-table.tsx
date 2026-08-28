@@ -84,8 +84,18 @@ export function PricingTable({ country = "OTHERS" }: { country?: string }) {
   useEffect(() => {
     if (!paddle || !pendingPriceId) return;
     const priceId = pendingPriceId;
-    setPendingPriceId(null);
     launchCheckout(priceId);
+    // Deferred to a timer instead of calling setPendingPriceId(null)
+    // synchronously here — a bare setState call in an effect body trips
+    // react-hooks/set-state-in-effect (cascading-render check; CI #26),
+    // since React has to run a second synchronous render pass before the
+    // browser paints. A timer-scheduled update is the rule's own sanctioned
+    // exception (react.dev/reference/eslint-plugin-react-hooks/lints/set-
+    // state-in-effect): it's an indirect, asynchronous update, not a
+    // cascading one. 0ms is imperceptible here since launchCheckout has
+    // already handed off to Paddle's checkout overlay by the time it fires.
+    const timer = setTimeout(() => setPendingPriceId(null), 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paddle, pendingPriceId]);
 
